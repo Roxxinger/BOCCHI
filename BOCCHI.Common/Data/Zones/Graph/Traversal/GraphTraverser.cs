@@ -18,6 +18,11 @@ public class GraphTraverser(ZoneGraph graph, IPathfinder pathfinder, ILogger log
 
     public async Task<List<PathStep>> FindPath(Vector3 start, Node goal)
     {
+        return await FindPath(start, goal, 1, Random.Shared);
+    }
+
+    public async Task<List<PathStep>> FindPath(Vector3 start, Node goal, int topK, Random? rng = null)
+    {
         List<TraversalCandidate> candidates = new();
 
         // Calculators with a cheap lower bound run last, and are skipped when they cannot beat
@@ -51,7 +56,25 @@ public class GraphTraverser(ZoneGraph graph, IPathfinder pathfinder, ILogger log
             await Evaluate(calculator, start, goal, candidates);
         }
 
-        return candidates.MinBy(c => c.TotalCost)?.Steps ?? [];
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        // Sort by cost ascending
+        candidates.Sort((a, b) => a.TotalCost.CompareTo(b.TotalCost));
+
+        // If topK <= 1 or only one candidate, use deterministic min
+        if (topK <= 1 || candidates.Count == 1)
+        {
+            return candidates[0].Steps;
+        }
+
+        // Pick randomly from top K candidates (clamped to available)
+        int k = Math.Min(topK, candidates.Count);
+        var chosen = candidates[rng!.Next(k)];
+        logger.Info($"PathDiversity: picked candidate {candidates.IndexOf(chosen) + 1}/{k} (cost={chosen.TotalCost:F2})");
+        return chosen.Steps;
     }
 
     private async Task Evaluate(

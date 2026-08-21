@@ -122,4 +122,31 @@ public class AutomatorConfig : IAutoConfig
     /// </summary>
     [IntRange(1, 99, Order = 18, Section = "repair")]
     public int AutoRepairThreshold { get; set; } = 30;
-}
+
+    /// <summary>
+    ///     Radius (meters) of a random 2D offset applied to each pathfind target so
+    ///     loops approach from slightly different angles instead of retracing one
+    ///     exact line. 0 = disabled. Kept small so the player always lands inside the
+    ///     activity's interaction radius.
+    /// </summary>
+    [FloatRange(0f, 6f, Order = 18)]
+        public float PathJitterRadius { get; set; } = 2f;
+
+        /// <summary>
+            ///     Arrival range (meters) passed to vnavmesh as DistanceThreshold for jittered
+            ///     pathfind targets. vnavmesh then picks the final leg itself instead of marching
+            ///     to the exact point — more natural approach, no mesh-edge risk.
+            ///     0 = arrive exactly (disabled).
+            /// </summary>
+            [FloatRange(0f, 6f, Order = 19)]
+            public float PathArrivalRange { get; set; } = 2f;
+
+            /// <summary>
+            ///     Number of top-cost path candidates to consider for random selection instead of
+            ///     always taking the absolute minimum. 1 = deterministic (current behavior).
+            ///     2-5 = pick randomly among the best N paths, breaking identical routes across users.
+            ///     0 = disabled.
+            /// </summary>
+            [IntRange(0, 10, Order = 20)]
+            public int PathDiversityTopK { get; set; } = 1;
+        }
