@@ -119,6 +119,15 @@ public class InCriticalEncounterHandler
 
     public override void Exit(AutomatorState next)
     {
+        // Keep CE commitment across Dead so raise does not drop the goal as "still pathing".
+        if (next == AutomatorState.Dead)
+        {
+            autoRotation.DisableAi();
+            logger.Info("Died in CE — keeping commitment for raise");
+            base.Exit(next);
+            return;
+        }
+
         memory.Forget<SuspendTravelForActivityMemory>();
         memory.Forget<CommittedCriticalEncounterMemory>();
         autoRotation.DisableAi();

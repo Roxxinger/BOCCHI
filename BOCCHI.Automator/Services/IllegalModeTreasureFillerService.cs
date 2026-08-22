@@ -6,6 +6,7 @@ using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Services;
 using BOCCHI.Treasure.Hunt;
 using BOCCHI.Treasure.Services;
+using ECommons.Throttlers;
 using Ocelot.Lifecycle;
 using Ocelot.Services.Logger;
 
@@ -21,6 +22,7 @@ public class IllegalModeTreasureFillerService
     ITreasureTracker tracker,
     ISupportJobFactory supportJobs,
     IZoneProvider zones,
+    IIllegalModeStartableActivityProbe startableActivities,
     AutomatorConfig automatorConfig,
     TreasureConfig treasureConfig,
     ILogger<IllegalModeTreasureFillerService> logger
@@ -34,6 +36,8 @@ public class IllegalModeTreasureFillerService
     private bool hadFillerHunt;
 
     private bool loggedSightUnavailable;
+
+    private bool HasTreasureSight => SupportJobTreasureSight.CanCast(supportJobs);
 
     public void Update()
     {
@@ -69,6 +73,7 @@ public class IllegalModeTreasureFillerService
         if (hunter.ManagedByIllegalModeFiller && hunter.Running)
         {
             hadFillerHunt = true;
+            UpdateRunningFillerHunt(activityNow);
             return;
         }
 
@@ -108,6 +113,49 @@ public class IllegalModeTreasureFillerService
         }
     }
 
+    /// <summary>
+    ///     Sight hunts stay exclusive. Map hunts (no Sight) pause when a FATE/CE is available so
+    ///     Illegal Mode can take it, then resume the same route afterward.
+    /// </summary>
+    private void UpdateRunningFillerHunt(bool activityNow)
+    {
+        if (HasTreasureSight)
+        {
+            return;
+        }
+
+        if (activityNow)
+        {
+            if (!hunter.Paused)
+            {
+                hunter.Pause();
+                logger.Debug("Illegal Mode: paused map treasure hunt for CE/FATE activity");
+            }
+
+            automator.SetSuspendedForTreasure(false);
+            return;
+        }
+
+        bool startable = startableActivities.HasStartableFateOrCriticalEncounter();
+        if (!hunter.Paused && startable)
+        {
+            hunter.Pause();
+            automator.SetSuspendedForTreasure(false);
+            if (EzThrottler.Throttle("IllegalModeMapHuntYield", 5000))
+            {
+                logger.Info("Illegal Mode: pausing map treasure hunt — FATE/CE available");
+            }
+
+            return;
+        }
+
+        if (hunter.Paused && !startable)
+        {
+            // Activity cancelled / nothing to do — keep filling the map.
+            EnterHuntPhase(fromSurvey: false);
+        }
+    }
+
     private void EnsureSurveyMemory(out AutomaticTreasureSurveyMemory survey)
     {
         if (memory.TryRemember(out survey))
@@ -132,12 +180,20 @@ public class IllegalModeTreasureFillerService
             return;
         }
 
+        // Same map-hunt session was paused for this FATE/CE — continue remaining pads.
+        if (hunter.ManagedByIllegalModeFiller && hunter.Running && hunter.Paused)
+        {
+            logger.Info("Illegal Mode: resuming map treasure hunt after FATE/CE");
+            EnterHuntPhase(fromSurvey: false);
+            return;
+        }
+
         LatchPostActivityHunt(survey, "activity completed");
     }
 
     private void LatchPostActivityHunt(AutomaticTreasureSurveyMemory survey, string reason)
     {
-        if (!SupportJobTreasureSight.CanCast(supportJobs))
+        if (!HasTreasureSight)
         {
             survey.PendingSurvey = false;
             survey.WaitingForSurveyResult = false;
@@ -158,7 +214,7 @@ public class IllegalModeTreasureFillerService
 
     private void ClearSurveyLatchIfSightUnavailable(AutomaticTreasureSurveyMemory survey)
     {
-        if (SupportJobTreasureSight.CanCast(supportJobs))
+        if (HasTreasureSight)
         {
             loggedSightUnavailable = false;
             return;
@@ -184,13 +240,19 @@ public class IllegalModeTreasureFillerService
 
         loggedSightUnavailable = true;
         logger.Info(
-            "Illegal Mode: Treasure Sight unavailable (Freelancer below level {Level}) — using built-in coffer map",
+            "Illegal Mode: Treasure Sight unavailable (Freelancer below level {Level}) — using built-in coffer map (yields to FATE/CE)",
             SupportJobTreasureSight.RequiredFreelancerLevel);
     }
 
     private void TryStartPendingMapHunt(AutomaticTreasureSurveyMemory survey)
     {
         if (!hunter.IsVnavAvailable || TriageSession.IsActive(memory))
+        {
+            return;
+        }
+
+        // Prefer a live FATE/CE before burning a full map pass.
+        if (startableActivities.HasStartableFateOrCriticalEncounter())
         {
             return;
         }
@@ -289,7 +351,16 @@ public class IllegalModeTreasureFillerService
 
     private void EnterHuntPhase(bool fromSurvey)
     {
-        automator.SetSuspendedForTreasure(true);
+        // Sight surveys: suspend Illegal Mode for the short revealed route.
+        // Map hunts (no Sight): keep Automator awake so a spawned FATE/CE can interrupt.
+        if (HasTreasureSight)
+        {
+            automator.SetSuspendedForTreasure(true);
+        }
+        else
+        {
+            automator.SetSuspendedForTreasure(false);
+        }
 
         if (!hunter.IsVnavReady)
         {

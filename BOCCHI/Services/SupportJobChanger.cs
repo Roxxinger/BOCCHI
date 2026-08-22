@@ -1,3 +1,4 @@
+using BOCCHI.Automator.Services;
 using BOCCHI.Common.Data.SupportJobs;
 using BOCCHI.Common.Services;
 using Dalamud.Plugin.Services;
@@ -13,7 +14,8 @@ public class SupportJobChanger
 (
     IChainManager chainManager,
     ISupportJobFactory supportJobs,
-    IObjectTable objects
+    IObjectTable objects,
+    ICondition conditions
 ) : ISupportJobChanger, IOnUpdate
 {
     private Task<ChainResult>? task;
@@ -29,6 +31,11 @@ public class SupportJobChanger
     public void Change(SupportJobId id)
     {
         if (task != null)
+        {
+            return;
+        }
+
+        if (PhantomJobChangeGate.IsBlocked(conditions))
         {
             return;
         }

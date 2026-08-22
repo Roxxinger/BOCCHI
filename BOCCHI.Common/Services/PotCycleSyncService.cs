@@ -56,9 +56,6 @@ public sealed class PotCycleSyncService
 
     private long lastUploadedSpawnUnix;
 
-    /// <summary>Last upload instance key; re-upload when the fingerprint rotates.</summary>
-    private string? lastUploadedInstanceKey;
-
     private string? lastFetchedInstanceKey;
 
     private DateTime nextUploadAttemptUtc = DateTime.MinValue;
@@ -124,7 +121,6 @@ public sealed class PotCycleSyncService
                 lastUploadedTerritory = upload.TerritoryId;
                 lastUploadedPotFateId = upload.PotFateId;
                 lastUploadedSpawnUnix = upload.SpawnUnix;
-                lastUploadedInstanceKey = upload.InstanceKey;
                 nextUploadAttemptUtc = DateTime.UtcNow;
                 logger.Debug(
                     "[PotCycleSync] uploaded pot={PotId} spawn={Spawn} key={KeyPrefix}…",
@@ -256,10 +252,10 @@ public sealed class PotCycleSyncService
         }
 
         long spawnUnix = snap.AnchorSpawnAt.ToUnixTimeSeconds();
+        // Skip re-upload when only the FATE fingerprint rotated.
         if (lastUploadedTerritory == territory
             && lastUploadedPotFateId == snap.AnchorPotFateId
-            && lastUploadedSpawnUnix == spawnUnix
-            && lastUploadedInstanceKey == instanceKey)
+            && lastUploadedSpawnUnix == spawnUnix)
         {
             return;
         }
@@ -453,7 +449,6 @@ public sealed class PotCycleSyncService
         fingerprintFateId = 0;
         fingerprintStartEpoch = 0;
         lastFetchedInstanceKey = null;
-        lastUploadedInstanceKey = null;
         nextFetchAttemptUtc = DateTime.MinValue;
         fetchRateLimitDelay = FetchRateLimitMinDelay;
         loggedFetchRateLimit = false;
@@ -477,7 +472,6 @@ public sealed class PotCycleSyncService
         fingerprintFateId = 0;
         fingerprintStartEpoch = 0;
         lastFetchedInstanceKey = null;
-        lastUploadedInstanceKey = null;
         nextFetchAttemptUtc = DateTime.MinValue;
         fetchRateLimitDelay = FetchRateLimitMinDelay;
         loggedFetchRateLimit = false;

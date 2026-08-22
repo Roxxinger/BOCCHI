@@ -13,11 +13,11 @@
   "fields": {
     "should_handle_targeting": {
       "label": "Auto-target enemies",
-      "tooltip": "While fighting, BOCCHI picks and switches targets for you."
+      "tooltip": "During the pull, BOCCHI picks targets for you. Once fighting starts with combat AI on, targeting is left to the AI."
     },
     "force_target_central_enemy": {
       "label": "Prefer the middle of the pack",
-      "tooltip": "Target the enemy nearest the pack center instead of the closest one. Needs Auto-target enemies."
+      "tooltip": "When fighting without combat AI, target the enemy nearest the pack center instead of the closest one. Needs Auto-target enemies."
     },
     "consider_special_mobs": {
       "label": "Include special enemies",
@@ -81,15 +81,19 @@
     },
     "apply_ringing_respite": {
       "label": "Use Ringing Respite",
-      "tooltip": "With Battle Bell (or on its own): Geomancer III heals you when you take hits. Needs Geomancer III."
+      "tooltip": "With Battle Bell (or on its own): Geomancer III heals you when you take hits. Needs Geomancer III. Waits briefly if Quickstep just used the shared cooldown."
     },
     "apply_quickstep": {
       "label": "Use Quickstep",
-      "tooltip": "Before each pull, switch to Phantom Dancer and cast Quickstep (90s evasion). Needs Dancer 2."
+      "tooltip": "Before each pull, switch to Phantom Dancer and cast Quickstep (90s evasion). Needs Dancer 2. Shares a short cooldown with Ringing Respite."
+    },
+    "apply_counterstance": {
+      "label": "Use Counterstance",
+      "tooltip": "Near the end of pull buffs, switch to Phantom Monk and cast Counterstance for Fleetfooted (short damage reduction). Needs Monk 3. Applied late so the buff covers the start of the pull."
     },
     "maximum_battle_bell_wait_time": {
-      "label": "Max wait for Bell / Respite",
-      "tooltip": "If Battle Bell or Ringing Respite needs longer than this (seconds) to come off cooldown, skip that skill for the pull."
+      "label": "Max wait for Bell / Respite / Stance",
+      "tooltip": "Skip Battle Bell, Ringing Respite, or Counterstance for this pull if their cooldown is longer than this (seconds). After Quickstep, Respite often needs a few seconds on the shared cooldown."
     },
     "quickstep_skip_if_remaining_minutes": {
       "label": "Skip Quickstep if remaining (minutes)",

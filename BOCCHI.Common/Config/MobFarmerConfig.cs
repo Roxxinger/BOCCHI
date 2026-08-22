@@ -76,28 +76,31 @@ public class MobFarmerConfig : IAutoConfig
     [Checkbox(Order = 21, Section = "buffs")]
     public bool ApplyQuickstep { get; set; } = false;
 
-    [FloatRange(0f, 30f, Order = 22, Section = "buffs")]
+    [Checkbox(Order = 22, Section = "buffs")]
+    public bool ApplyCounterstance { get; set; } = false;
+
+    [FloatRange(0f, 30f, Order = 23, Section = "buffs")]
     public float MaximumBattleBellWaitTime { get; set; } = 10f;
 
     /// <summary>
-    ///     Skip Quickstep when the 30m crystal Quicker Step buff still has at least this many
-    ///     minutes left. 0 = recast every pull (90s evasion).
+    ///     Skip Quickstep when the crystal Quicker Step buff still has at least this many minutes.
+    ///     0 = recast every pull.
     /// </summary>
-    [IntRange(0, 30, Order = 23, Section = "buffs")]
+    [IntRange(0, 30, Order = 24, Section = "buffs")]
     public int QuickstepSkipIfRemainingMinutes { get; set; } = 0;
 
-    [Checkbox(Order = 24, Section = "yields")]
+    [Checkbox(Order = 25, Section = "yields")]
     public bool YieldToPots { get; set; } = false;
 
-    [Checkbox(Order = 25, Section = "yields")]
+    [Checkbox(Order = 26, Section = "yields")]
     public bool YieldToTreasureHunt { get; set; } = false;
 
-    [IntRange(5, 60, Order = 26, Indent = 1, Requires = nameof(YieldToTreasureHunt), Section = "yields")]
+    [IntRange(5, 60, Order = 27, Indent = 1, Requires = nameof(YieldToTreasureHunt), Section = "yields")]
     public int TreasureHuntIntervalMinutes { get; set; } = 15;
 
-    [Checkbox(Order = 27, Section = "yields")]
+    [Checkbox(Order = 28, Section = "yields")]
     public bool YieldToCrystalBuffs { get; set; } = false;
 
-    [Checkbox(Order = 28, Section = "debug")]
+    [Checkbox(Order = 29, Section = "debug")]
     public bool RenderDebugLines { get; set; } = false;
 }

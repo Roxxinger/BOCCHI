@@ -120,35 +120,65 @@ public class CriticalEncounter(
     }
 
     /// <summary>
-    ///     LGB MapRange centres farther than this from authored staging are treated as a bad match
-    ///     (wrong volume) — keep staging as the registration origin instead.
+    ///     Reject LGB centres this far from authored staging (wrong volume).
     /// </summary>
     public const float MaxRegistrationCenterSkew = 100f;
+
+    /// <summary>
+    ///     Reject unpadded LGB radii above this (e.g. Eternal Watch ~560y).
+    /// </summary>
+    public const float MaxRegistrationRadius = 80f;
+
+    /// <summary>
+    ///     Fallback unpadded radius when LGB centre or size is rejected.
+    /// </summary>
+    public const float FallbackRegistrationRadius = 40f;
+
+    /// <summary>
+    ///     Choose wait centre + unpadded radius from live LGB vs authored staging.
+    /// </summary>
+    public static void SanitizeRegistration(
+        Vector3 authoredStaging,
+        Vector3 lgbCenter,
+        float lgbRadius,
+        out Vector3 center,
+        out float radius,
+        out bool rejected)
+    {
+        bool badCenter = !float.IsNaN(authoredStaging.X)
+                         && lgbCenter.Distance2D(authoredStaging) > MaxRegistrationCenterSkew;
+        bool badRadius = lgbRadius <= 0f || lgbRadius > MaxRegistrationRadius;
+        rejected = badCenter || badRadius;
+        if (rejected)
+        {
+            center = float.IsNaN(authoredStaging.X) ? lgbCenter : authoredStaging;
+            radius = FallbackRegistrationRadius;
+            return;
+        }
+
+        center = lgbCenter;
+        radius = lgbRadius;
+    }
 
     /// <summary>Apply live LGB registration size and centre (unpadded combat radius).</summary>
     public void ApplyCombatGeometry(float combatRadius, ActivityAreaShape shape, Vector3? center = null)
     {
         AreaShape = shape;
-        Radius = combatRadius > 0f
-            ? NavigationConstants.CriticalEncounterPaddedRadius(combatRadius, shape)
-            : 0f;
 
         if (center is not { } lgb || float.IsNaN(lgb.X))
         {
             RegistrationCenter = Position;
+            float size = combatRadius > 0f && combatRadius <= MaxRegistrationRadius
+                ? combatRadius
+                : FallbackRegistrationRadius;
+            Radius = NavigationConstants.CriticalEncounterPaddedRadius(size, shape);
             return;
         }
 
-        // Never move Position off authored staging — LGB is often an entrance marker, and a wrong
-        // MapRange match used to yank Waiting / In CE onto the Lost Citadel approach (Eternal Watch).
-        if (!float.IsNaN(fallbackPosition.X)
-            && lgb.Distance2D(fallbackPosition) > MaxRegistrationCenterSkew)
-        {
-            RegistrationCenter = fallbackPosition;
-            return;
-        }
-
-        RegistrationCenter = lgb;
+        // Keep authored staging as Position; sanitize LGB wait centre / radius.
+        SanitizeRegistration(fallbackPosition, lgb, combatRadius, out Vector3 waitAt, out float sizeOk, out _);
+        RegistrationCenter = waitAt;
+        Radius = NavigationConstants.CriticalEncounterPaddedRadius(sizeOk, shape);
     }
 
     public TimeSpan? GetTimeUntilStart()

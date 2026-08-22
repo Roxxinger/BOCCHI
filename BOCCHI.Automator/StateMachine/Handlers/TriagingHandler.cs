@@ -39,7 +39,7 @@ public class TriagingHandler
     ILogger<TriagingHandler> logger
 ) : ScoreStateHandler<AutomatorState, StatePriority>(AutomatorState.Triaging)
 {
-    private static readonly TimeSpan JobSwapSettle = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan JobSwapSettle = TimeSpan.FromSeconds(5);
 
     private static readonly TimeSpan SessionTimeout = TimeSpan.FromSeconds(90);
 
@@ -122,12 +122,17 @@ public class TriagingHandler
             return;
         }
 
-        if (conditions[ConditionFlag.InCombat] || PhantomJobChangeGate.IsBlocked(conditions))
+        if (conditions[ConditionFlag.InCombat])
         {
             return;
         }
 
         if (DismountAssist.TryDismount(conditions))
+        {
+            return;
+        }
+
+        if (PhantomJobChangeGate.IsBlocked(conditions))
         {
             return;
         }

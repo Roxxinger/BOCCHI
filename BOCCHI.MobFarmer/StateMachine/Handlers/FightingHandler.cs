@@ -58,7 +58,9 @@ public class FightingHandler
                 return null;
             }
 
-            if (config.ShouldHandleTargeting
+            // Auto-target during pull only; with combat AI on, leave targeting to the AI.
+            if (!useAi
+                && config.ShouldHandleTargeting
                 && inCombat.Count > 0
                 && EzThrottler.Throttle("MobFarmer::Fighting::Target", 250))
             {

@@ -4,6 +4,7 @@ using BOCCHI.Common.Config;
 using BOCCHI.Common.Data.StateMemory;
 using BOCCHI.Common.Data.SupportJobs;
 using BOCCHI.Common.Services;
+using Dalamud.Plugin.Services;
 using ECommons.Throttlers;
 using Ocelot.Services.Logger;
 using Ocelot.States.Score;
@@ -16,6 +17,7 @@ public class LevelingPhantomJobHandler
     IAutomatorMemory memory,
     ISupportJobFactory jobs,
     ISupportJobChanger changer,
+    ICondition conditions,
     AutomatorConfig config,
     ILogger<LevelingPhantomJobHandler> logger
 ) : ScoreStateHandler<AutomatorState, StatePriority>(AutomatorState.LevelingPhantomJob)
@@ -57,7 +59,7 @@ public class LevelingPhantomJobHandler
             return;
         }
 
-        if (changer.IsBusy())
+        if (changer.IsBusy() || PhantomJobChangeGate.IsBlocked(conditions))
         {
             return;
         }

@@ -38,7 +38,7 @@ public sealed class FarmerCombatController(
         session.Disable();
     }
 
-    public void EnableFighting() => session.Enable(CombatActivity.Fate);
+    public void EnableFighting() => session.Enable(CombatActivity.MobFarm);
 
     public void Disable() => session.Disable();
 

@@ -13,11 +13,11 @@
   "fields": {
     "should_handle_targeting": {
       "label": "自动选取目标",
-      "tooltip": "战斗时由 BOCCHI 为你挑选并切换目标。"
+      "tooltip": "拉怪时由 BOCCHI 选取目标。开启战斗 AI 并进入战斗后，目标交给 AI。"
     },
     "force_target_central_enemy": {
       "label": "优先怪群中心",
-      "tooltip": "优先选择最靠近怪群中心的敌人，而不是距离最近的。需要开启“自动选取目标”。"
+      "tooltip": "在未开启战斗 AI 时，优先选择最靠近怪群中心的敌人，而不是距离最近的。需要开启“自动选取目标”。"
     },
     "consider_special_mobs": {
       "label": "包含特殊敌人",
@@ -81,15 +81,19 @@
     },
     "apply_ringing_respite": {
       "label": "使用鸣响安息",
-      "tooltip": "与战斗之铃一起（或单独）使用：受击时治疗。需要风水师 3 级。"
+      "tooltip": "与战斗之铃一起（或单独）使用：受击时治疗。需要风水师 3 级。若刚用过快步的共享冷却，会稍等再施。"
     },
     "apply_quickstep": {
       "label": "使用快步",
-      "tooltip": "每次拉怪前切换到幻舞者并施放快步（90 秒回避）。需要舞者 2 级。"
+      "tooltip": "每次拉怪前切换到幻舞者并施放快步（90 秒回避）。需要舞者 2 级。与鸣响安息共享短冷却。"
+    },
+    "apply_counterstance": {
+      "label": "使用对策架势",
+      "tooltip": "拉怪前增益末段切换到幻僧，施放对策架势获得轻足（短时减伤）。需要僧 3 级。尽量晚施，让增益盖住拉怪开头。"
     },
     "maximum_battle_bell_wait_time": {
-      "label": "等待铃/安息的最长时间",
-      "tooltip": "若战斗之铃或鸣响安息冷却长于该时间（秒），本次拉怪跳过该技能。"
+      "label": "等待铃/安息/架势的最长时间",
+      "tooltip": "冷却长于该时间（秒）则跳过战斗之铃、鸣响安息或对策架势。也用于快步后等待鸣响安息的共享冷却。"
     },
     "quickstep_skip_if_remaining_minutes": {
       "label": "剩余超过该分钟则跳过快步",

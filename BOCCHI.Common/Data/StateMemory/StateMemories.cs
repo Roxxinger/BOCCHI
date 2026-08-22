@@ -42,11 +42,12 @@ public sealed class AutomaticTreasureSurveyMemory
 
     /// <summary>
     ///     Start a built-in-map treasure hunt when idle (no Treasure Sight / Freelancer &lt; 10).
+    ///     Does not block Choosing — a live FATE/CE can take priority first.
     /// </summary>
     public bool PendingMapHunt { get; set; }
 
-    /// <summary>True while a survey or map hunt is latched or waiting for the chat result.</summary>
-    public bool IsBusy => PendingSurvey || WaitingForSurveyResult || PendingMapHunt;
+    /// <summary>True while a Treasure Sight survey is latched or waiting for the chat result.</summary>
+    public bool IsBusy => PendingSurvey || WaitingForSurveyResult;
 
     /// <summary>Accept surveys with Tracker.SurveyRevision &gt; this value.</summary>
     public int MinAcceptedRevision { get; set; }
