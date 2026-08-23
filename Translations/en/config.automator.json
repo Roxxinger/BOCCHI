@@ -129,16 +129,68 @@
       "tooltip": "After a FATE or CE, wait a random time from 2s up to this before Return. If Treasure Sight is queued, Return immediately so Sight can land."
     },
     "max_base_teleport_delay_seconds": {
-      "label": "Max wait before leaving camp (seconds)",
-      "tooltip": "At camp, wait 0 to this many seconds before leaving for a FATE or CE. 0 = leave right away."
-    },
-    "auto_repair_threshold": {
-      "label": "Repair gear below (%)",
-      "tooltip": "At base camp, repair any equipped piece at or below this durability."
-    },
-    "enable_automatic_treasure_hunt_during_illegal_mode": {
-      "label": "Auto treasure hunt in Illegal Mode",
-      "tooltip": "After a FATE or CE, return to camp and run Treasure Sight if known. Starts a hunt only when fill meets the bronze/silver % on Treasure Hunter. Without Sight, uses the built-in map (those % ignored) and pauses that map route when a FATE/CE appears, then resumes it afterward."
+          "label": "Max wait before leaving camp (seconds)",
+          "tooltip": "At camp, wait 0 to this many seconds before leaving for a FATE or CE. 0 = leave right away."
+        },
+        "auto_repair_threshold": {
+          "label": "Repair gear below (%)",
+          "tooltip": "At base camp, repair any equipped piece at or below this durability."
+        },
+        "path_jitter_radius": {
+          "label": "Path jitter radius (meters)",
+          "tooltip": "Random 2D offset applied to each pathfind target so loops approach from slightly different angles. 0 = disabled. Kept small to stay inside the activity's interaction radius."
+        },
+        "path_arrival_range": {
+          "label": "Path arrival range (meters)",
+          "tooltip": "Distance threshold passed to vnavmesh for jittered targets. vnavmesh picks the final leg naturally instead of marching to the exact point. 0 = arrive exactly (disabled)."
+        },
+        "path_diversity_top_k": {
+          "label": "Path diversity Top-K",
+          "tooltip": "Number of top-cost path candidates to consider for random selection. 1 = deterministic. 2-5 = pick randomly among best N paths. 0 = disabled."
+        },
+        "enable_randomization": {
+          "label": "Enable randomization (humanize)",
+          "tooltip": "When on, the values below are randomized within their min/max ranges each time Illegal Mode starts, a CE begins, or a FATE begins."
+        },
+        "random_overdodge_min": {
+          "label": "Random Overdodge Min",
+          "tooltip": "Minimum Overdodge AoE setting for randomization."
+        },
+        "random_overdodge_max": {
+          "label": "Random Overdodge Max",
+          "tooltip": "Maximum Overdodge AoE setting for randomization."
+        },
+        "random_delayed_min": {
+          "label": "Random Delayed Movement Min",
+          "tooltip": "Minimum Delayed Movement setting for randomization."
+        },
+        "random_delayed_max": {
+          "label": "Random Delayed Movement Max",
+          "tooltip": "Maximum Delayed Movement setting for randomization."
+        },
+        "random_melee_range_min": {
+          "label": "Random Melee Range Min (meters)",
+          "tooltip": "Minimum melee target range for randomization."
+        },
+        "random_melee_range_max": {
+          "label": "Random Melee Range Max (meters)",
+          "tooltip": "Maximum melee target range for randomization."
+        },
+        "random_ranged_range_min": {
+          "label": "Random Ranged Range Min (meters)",
+          "tooltip": "Minimum ranged target range for randomization."
+        },
+        "random_ranged_range_max": {
+          "label": "Random Ranged Range Max (meters)",
+          "tooltip": "Maximum ranged target range for randomization."
+        },
+        "randomization_seed": {
+          "label": "Randomization Seed",
+          "tooltip": "Seed for randomization. 0 = time-based (different each run)."
+        },
+        "enable_automatic_treasure_hunt_during_illegal_mode": {
+          "label": "Auto treasure hunt in Illegal Mode",
+          "tooltip": "After a FATE or CE, return to camp and run Treasure Sight if known. Starts a hunt only when fill meets the bronze/silver % on Treasure Hunter. Without Sight, uses the built-in map (those % ignored) and pauses that map route when a FATE/CE appears, then resumes it afterward."
+        }
+      }
     }
-  }
-}

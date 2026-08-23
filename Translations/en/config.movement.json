@@ -3,7 +3,8 @@
   "tooltip": "Mounting, sprinting and unsticking. These apply to every kind of travel — Illegal Mode, Treasure Hunt, Carrot Hunt and Mob Farmer.",
   "sections": {
     "mount": "Mount & sprint",
-    "unstuck": "Getting unstuck"
+    "unstuck": "Getting unstuck",
+    "conflict": "Path conflict detection"
   },
   "fields": {
     "sprint_on_aetheryte_approach": {
@@ -26,6 +27,22 @@
     "jump_when_stuck_seconds": {
       "label": "Seconds before jumping",
       "tooltip": "How long to stand still before trying a jump."
+    },
+    "enable_path_conflict_detection": {
+      "label": "Enable path conflict detection",
+      "tooltip": "Check for other players on our active path and re-route if someone is ahead of us."
+    },
+    "path_conflict_check_interval_seconds": {
+      "label": "Conflict check interval (seconds)",
+      "tooltip": "Minimum time between path conflict checks."
+    },
+    "path_conflict_distance_threshold": {
+      "label": "Conflict distance threshold (meters)",
+      "tooltip": "Another player within this distance of any path waypoint is considered \"on our path\"."
+    },
+    "path_conflict_ahead_threshold": {
+      "label": "Conflict ahead threshold (meters)",
+      "tooltip": "How much closer to the destination the other player must be to trigger a re-route. Prevents re-routing for players behind us or alongside us."
     }
   }
 }
