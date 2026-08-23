@@ -9,9 +9,22 @@
     "targets": {
       "label": "Shopping targets",
       "tooltip": "Items to buy from the Antiquarian. Evaluated Keep → Buy → Keep Buying, lower priority first.",
+      "add_hint": "Add Item",
+      "add": "Add Item",
       "remove": "Remove",
-      "add": "Add target",
-      "add_hint": "Add by catalog item ID:"
+      "empty_catalog": "No supported shopping catalog items are defined.",
+      "none": "No shopping items configured for this territory.",
+      "priority_list": "Shopping Priority List",
+      "priority_tooltip": "Order matters — items at the top get bought first. Items process Keep targets first, then Buy targets, then Keep Buying. Only one item can have Keep Buying at a time.",
+      "currency": "Currency",
+      "col_currency": "Currency",
+      "col_reserved": "Reserved",
+      "col_threshold": "Threshold",
+      "col_order": "Order",
+      "col_item": "Item",
+      "col_keep": "Keep",
+      "col_buy": "Buy",
+      "col_keep_buying": "Keep Buying"
     }
   }
 }

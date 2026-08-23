@@ -1,3 +1,9 @@
+# 4.1.0.10
+
+### Features
+- Shopping config page rebuilt AOCCH-style: add items via **page → tab → item dropdowns** (full catalog browse), then manage a **priority table** with move up/down ordering, per-item **Keep** / **Buy** inputs, single-slot **Keep Buying**, and remove.
+- Currency table with per-currency **Reserved** (never spend below) and **Threshold** (auto-start trigger) inputs for the current territory.
+
 # 4.1.0.9
 
 ### Features
