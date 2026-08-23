@@ -84,13 +84,17 @@ public sealed class Plugin(IDalamudPluginInterface plugin, IPluginLog logger) : 
         services.AddSingleton<IMp3SoundPlayer, Mp3SoundPlayer>();
         services.AddSingleton<IFieldRenderer<Mp3SoundSelectAttribute>, Mp3SoundSelectRenderer>();
         services.AddSingleton<UILanguageDisplay>();
-        services.AddSingleton<NoOpFilter<UILanguage>>();
-        services.AddSingleton<CombatAutorotationDisplay>();
-        services.AddSingleton<CombatAutorotationFilter>();
-        services.AddSingleton<IFieldRenderer<TriageRaiseJobAttribute>, TriageRaiseJobRenderer>();
-        services.AddSingleton<IFieldRenderer<BossModPresetOptionsAttribute>, BossModPresetOptionsRenderer>();
-        services.AddSingleton<IFieldRenderer<FarmSpotListAttribute>, FarmSpotListRenderer>();
-        services.AddSingleton<MobFarmerYieldService>();
+                services.AddSingleton<NoOpFilter<UILanguage>>();
+                services.AddSingleton<CombatAutorotationDisplay>();
+                services.AddSingleton<CombatAutorotationFilter>();
+                services.AddSingleton<GenericDisplay<BossModOverdodge>>();
+                services.AddSingleton<NoOpFilter<BossModOverdodge>>();
+                services.AddSingleton<GenericDisplay<BossModMovementDelay>>();
+                services.AddSingleton<NoOpFilter<BossModMovementDelay>>();
+                services.AddSingleton<IFieldRenderer<TriageRaiseJobAttribute>, TriageRaiseJobRenderer>();
+                services.AddSingleton<IFieldRenderer<BossModPresetOptionsAttribute>, BossModPresetOptionsRenderer>();
+                services.AddSingleton<IFieldRenderer<FarmSpotListAttribute>, FarmSpotListRenderer>();
+                services.AddSingleton<MobFarmerYieldService>();
 
         services.AddSingleton<MessageOfTheDayService>();
         services.AddSingleton<IOnStart>(sp => sp.GetRequiredService<MessageOfTheDayService>());

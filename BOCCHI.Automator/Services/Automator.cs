@@ -20,6 +20,7 @@ using Ocelot.Ipc.VNavmesh;
 using Ocelot.Lifecycle;
 using Ocelot.Services.Logger;
 using Ocelot.Services.Pathfinding;
+using Ocelot.Services.PlayerState;
 using Ocelot.Services.Translation;
 using Ocelot.States;
 using Ocelot.Windows;
@@ -42,6 +43,7 @@ public class Automator
     IFateRepository fates,
     IObjectTable objects,
     IChatGui chat,
+    IPlayer player,
     PotsConfig potsConfig,
     AutomatorConfig automatorConfig,
     UIConfig uiConfig,
@@ -160,21 +162,26 @@ public class Automator
     }
 
     private void ApplyRunModeSideEffects(bool turningOn)
-    {
-        if (!turningOn)
         {
-            SuspendedForTreasure = false;
-            StopAutomation();
-            return;
+            if (!turningOn)
+            {
+                SuspendedForTreasure = false;
+                StopAutomation();
+                return;
+            }
+
+            ITreasureHunter hunter = hunterFactory();
+            SuspendedForTreasure = hunter.Running && hunter.ManagedByIllegalModeFiller;
+
+            memory.Forget<NavigationInterruptedMemory>();
+            autoRotation.PrepareForIllegalMode();
+        
+            // Apply humanizing randomization on Illegal Mode start
+            bool isMelee = player.IsMelee();
+            automatorConfig.ApplyRandomization(isMelee);
+        
+            EnsurePotChestFarmForBuff();
         }
-
-        ITreasureHunter hunter = hunterFactory();
-        SuspendedForTreasure = hunter.Running && hunter.ManagedByIllegalModeFiller;
-
-        memory.Forget<NavigationInterruptedMemory>();
-        autoRotation.PrepareForIllegalMode();
-        EnsurePotChestFarmForBuff();
-    }
 
     /// <summary>
     ///     Cache Me If You Can being up means there are chests to open, so that — not goal

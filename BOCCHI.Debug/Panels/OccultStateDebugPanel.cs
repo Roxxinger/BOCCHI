@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using BOCCHI.Common.Config;
 using BOCCHI.Common.Data.Aethernet;
 using BOCCHI.Common.Data.OccultCrescent;
 using BOCCHI.Common.Data.SupportJobs;
@@ -32,7 +33,9 @@ public sealed unsafe class OccultStateDebugPanel(
     IZoneProvider zones,
     ISupportJobFactory supportJobs,
     IBrandingService branding,
-    IUIService ui
+    IUIService ui,
+    AutomatorConfig automatorConfig,
+    MovementConfig movementConfig
 ) : IDebugPanel
 {
     private const int UnkPairsPtrOffset = 0x31E0;
@@ -48,30 +51,31 @@ public sealed unsafe class OccultStateDebugPanel(
     public string Name => "Occult State";
 
     public void Render()
-    {
-        PublicContentOccultCrescent* content = PublicContentOccultCrescent.GetInstance();
-        if (content == null)
         {
-            ui.Text("PublicContentOccultCrescent unavailable.");
-            return;
+            PublicContentOccultCrescent* content = PublicContentOccultCrescent.GetInstance();
+            if (content == null)
+            {
+                ui.Text("PublicContentOccultCrescent unavailable.");
+                return;
+            }
+
+            OccultCrescentState* state = PublicContentOccultCrescent.GetState();
+            ui.LabelledValue("StateLoaded", content->StateLoaded);
+            ui.LabelledValue("ContentTimeLeft", content->ContentTimeLeft.ToString("0.0", CultureInfo.InvariantCulture));
+            ui.LabelledValue("CurrentEvent", $"{content->DynamicEventContainer.CurrentEventId} idx={content->DynamicEventContainer.CurrentEventIndex}");
+
+            RenderKnowledge(state);
+            RenderCurrency(state);
+            RenderConfigValues();
+            RenderResolvedExcel();
+            RenderMkdDataCs();
+            RenderUnkPairs(content);
+            RenderStrings(content);
+            RenderChainTargets();
+            RenderTeleportBits(state);
+            RenderAgents();
+            RenderExcelSheets();
         }
-
-        OccultCrescentState* state = PublicContentOccultCrescent.GetState();
-        ui.LabelledValue("StateLoaded", content->StateLoaded);
-        ui.LabelledValue("ContentTimeLeft", content->ContentTimeLeft.ToString("0.0", CultureInfo.InvariantCulture));
-        ui.LabelledValue("CurrentEvent", $"{content->DynamicEventContainer.CurrentEventId} idx={content->DynamicEventContainer.CurrentEventIndex}");
-
-        RenderKnowledge(state);
-        RenderCurrency(state);
-        RenderResolvedExcel();
-        RenderMkdDataCs();
-        RenderUnkPairs(content);
-        RenderStrings(content);
-        RenderChainTargets();
-        RenderTeleportBits(state);
-        RenderAgents();
-        RenderExcelSheets();
-    }
 
     private void RenderKnowledge(OccultCrescentState* state)
     {
@@ -123,35 +127,81 @@ public sealed unsafe class OccultStateDebugPanel(
     }
 
     private void RenderCurrency(OccultCrescentState* state)
-    {
-        if (!ImGui.CollapsingHeader("Currency", ImGuiTreeNodeFlags.DefaultOpen))
         {
-            return;
+            if (!ImGui.CollapsingHeader("Currency", ImGuiTreeNodeFlags.DefaultOpen))
+            {
+                return;
+            }
+
+            ui.LabelledValue("State Silver/Gold", state == null ? "(null)" : $"{state->Silver} / {state->Gold}");
+            ui.LabelledValue(
+                "Inv pieces",
+                $"{OccultCrescentHelper.GetSilverPieces()} / {OccultCrescentHelper.GetGoldPieces()}");
+            ui.LabelledValue(
+                "Inv total (pieces+obols)",
+                $"{OccultCrescentHelper.GetSilverTotal()} / {OccultCrescentHelper.GetGoldTotal()}");
+
+            InventoryManager* inventory = InventoryManager.Instance();
+            int sanguine = inventory == null
+                ? -1
+                : inventory->GetInventoryItemCount(OccultCurrencies.SouthHornCipherItemId);
+            int amulet = inventory == null
+                ? -1
+                : inventory->GetInventoryItemCount(OccultCurrencies.NorthHornCipherItemId);
+            ui.LabelledValue("Inv Sanguine Cipher", $"{sanguine}  id={OccultCurrencies.SouthHornCipherItemId}");
+            ui.LabelledValue("Inv Arcane Amulet", $"{amulet}  id={OccultCurrencies.NorthHornCipherItemId}");
+            if (state != null)
+            {
+                byte* raw = (byte*)state;
+                ui.LabelledValue("State Unk94/Unk95 (cipher?)", $"{raw[StateUnk93Offset + 1]} / {raw[StateUnk93Offset + 2]}");
+            }
         }
 
-        ui.LabelledValue("State Silver/Gold", state == null ? "(null)" : $"{state->Silver} / {state->Gold}");
-        ui.LabelledValue(
-            "Inv pieces",
-            $"{OccultCrescentHelper.GetSilverPieces()} / {OccultCrescentHelper.GetGoldPieces()}");
-        ui.LabelledValue(
-            "Inv total (pieces+obols)",
-            $"{OccultCrescentHelper.GetSilverTotal()} / {OccultCrescentHelper.GetGoldTotal()}");
+        private void RenderConfigValues()
+            {
+                if (!ImGui.CollapsingHeader("Config — Randomization & Path Conflict", ImGuiTreeNodeFlags.DefaultOpen))
+                {
+                    return;
+                }
 
-        InventoryManager* inventory = InventoryManager.Instance();
-        int sanguine = inventory == null
-            ? -1
-            : inventory->GetInventoryItemCount(OccultCurrencies.SouthHornCipherItemId);
-        int amulet = inventory == null
-            ? -1
-            : inventory->GetInventoryItemCount(OccultCurrencies.NorthHornCipherItemId);
-        ui.LabelledValue("Inv Sanguine Cipher", $"{sanguine}  id={OccultCurrencies.SouthHornCipherItemId}");
-        ui.LabelledValue("Inv Arcane Amulet", $"{amulet}  id={OccultCurrencies.NorthHornCipherItemId}");
-        if (state != null)
-        {
-            byte* raw = (byte*)state;
-            ui.LabelledValue("State Unk94/Unk95 (cipher?)", $"{raw[StateUnk93Offset + 1]} / {raw[StateUnk93Offset + 2]}");
-        }
-    }
+                ui.Text("AutomatorConfig.Randomization:", branding.DalamudYellow);
+                ui.LabelledValue("EnableRandomization", automatorConfig.EnableRandomization.ToString());
+                if (automatorConfig.EnableRandomization)
+                {
+                    ui.LabelledValue("RandomOverdodgeMin", automatorConfig.RandomOverdodgeMin.ToString());
+                    ui.LabelledValue("RandomOverdodgeMax", automatorConfig.RandomOverdodgeMax.ToString());
+                    ui.LabelledValue("RandomDelayedMin", automatorConfig.RandomDelayedMin.ToString());
+                    ui.LabelledValue("RandomDelayedMax", automatorConfig.RandomDelayedMax.ToString());
+                    ui.LabelledValue("RandomMeleeRangeMin", $"{automatorConfig.RandomMeleeRangeMin:0.0}");
+                    ui.LabelledValue("RandomMeleeRangeMax", $"{automatorConfig.RandomMeleeRangeMax:0.0}");
+                    ui.LabelledValue("RandomRangedRangeMin", $"{automatorConfig.RandomRangedRangeMin:0.0}");
+                    ui.LabelledValue("RandomRangedRangeMax", $"{automatorConfig.RandomRangedRangeMax:0.0}");
+                    ui.LabelledValue("RandomizationSeed", automatorConfig.RandomizationSeed.ToString());
+                }
+
+                ImGui.Spacing();
+                ui.Text("MovementConfig.PathConflict:", branding.DalamudYellow);
+                ui.LabelledValue("EnablePathConflictDetection", movementConfig.EnablePathConflictDetection.ToString());
+                ui.LabelledValue("PathConflictCheckIntervalSeconds", movementConfig.PathConflictCheckIntervalSeconds.ToString());
+                ui.LabelledValue("PathConflictDistanceThreshold", $"{movementConfig.PathConflictDistanceThreshold:0.0}");
+                ui.LabelledValue("PathConflictAheadThreshold", $"{movementConfig.PathConflictAheadThreshold:0.0}");
+
+                ImGui.Spacing();
+                ui.Text("AutomatorConfig.Delays:", branding.DalamudYellow);
+                ui.LabelledValue("MaxRemoteIdleTimeSeconds", automatorConfig.MaxRemoteIdleTimeSeconds.ToString());
+                ui.LabelledValue("MaxBaseTeleportDelaySeconds", automatorConfig.MaxBaseTeleportDelaySeconds.ToString());
+                ui.LabelledValue("PathJitterRadius", $"{automatorConfig.PathJitterRadius:0.0}");
+                ui.LabelledValue("PathArrivalRange", $"{automatorConfig.PathArrivalRange:0.0}");
+                ui.LabelledValue("PathDiversityTopK", automatorConfig.PathDiversityTopK.ToString());
+
+                ImGui.Spacing();
+                ui.Text("BossMod Settings (current):", branding.DalamudYellow);
+                ui.LabelledValue("BossModOverdodge", automatorConfig.BossModOverdodge.ToString());
+                ui.LabelledValue("BossModMovementDelay", automatorConfig.BossModMovementDelay.ToString());
+                ui.LabelledValue("BossModMaxDistanceMelee", $"{automatorConfig.BossModMaxDistanceMelee:0.0}");
+                ui.LabelledValue("BossModMaxDistanceRanged", $"{automatorConfig.BossModMaxDistanceRanged:0.0}");
+                ui.LabelledValue("CombatAutorotation", automatorConfig.CombatAutorotation.ToString());
+            }
 
     private void RenderResolvedExcel()
     {

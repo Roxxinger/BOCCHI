@@ -8,14 +8,18 @@ using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Services;
 using BOCCHI.Common.Services.Paths;
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Objects.Enums;
+using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
 using ECommons.Throttlers;
 using Ocelot.Chain;
+using Ocelot.Ipc.VNavmesh;
 using Ocelot.Services.Logger;
 using Ocelot.Services.Pathfinding;
 using Ocelot.Services.Translation;
 using Ocelot.States.Score;
 using Ocelot.Windows;
+using System.Numerics;
 
 namespace BOCCHI.Automator.StateMachine.Handlers;
 
@@ -35,6 +39,7 @@ public class PathfindingHandler
     IChatGui chat,
     ITranslator<MainWindow> translator,
     AutoRotationController autoRotation,
+    IVNavmeshIpc vnav,
     ILogger<PathfindingHandler> logger
 ) : ScoreStateHandler<AutomatorState, StatePriority>(AutomatorState.Pathfinding)
 {
@@ -45,6 +50,9 @@ public class PathfindingHandler
     private string? pendingPauseReason;
 
     private DateTime mountBeforePauseDeadline = DateTime.MinValue;
+
+    // Path conflict detection (mirrors AOCCH MovementController.CheckPathConflict)
+    private DateTimeOffset lastPathConflictCheck = DateTimeOffset.MinValue;
 
     public override void Enter()
     {
@@ -106,6 +114,9 @@ public class PathfindingHandler
         {
             return;
         }
+
+        // Path conflict detection: check for other players on our active path
+        CheckPathConflict(player);
 
         if (pendingPauseReason != null && FinishMountBeforePause())
         {
@@ -240,6 +251,94 @@ public class PathfindingHandler
         if (!path.IsValid)
         {
             memory.Forget<GoalPathStepMemory>();
+        }
+    }
+
+    /// <summary>
+    /// Checks for other players on our active vnavmesh path and triggers a re-route if someone is ahead of us.
+    /// Mirrors AOCCH MovementController.CheckPathConflict.
+    /// </summary>
+    private void CheckPathConflict(IGameObject player)
+    {
+        if (!movement.EnablePathConflictDetection)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (now - lastPathConflictCheck < TimeSpan.FromSeconds(movement.PathConflictCheckIntervalSeconds))
+        {
+            return;
+        }
+        lastPathConflictCheck = now;
+
+        // Need an active vnavmesh path with waypoints
+        var waypoints = vnav.GetPathWaypoints();
+        if (waypoints == null || waypoints.Count == 0)
+        {
+            return;
+        }
+
+        if (!memory.TryRemember<GoalPathStepMemory>(out GoalPathStepMemory pathMemory))
+        {
+            return;
+        }
+
+        var nextStep = pathMemory.GetNextPathStep();
+        if (nextStep?.PathStepData is not Pathfind(var destination, _))
+        {
+            return;
+        }
+
+        var localPlayer = objects.LocalPlayer;
+        if (localPlayer == null) return;
+
+        // Get nearby players (PCs, alive, not us)
+        var nearbyPlayers = objects
+            .Where(obj => obj.ObjectKind == ObjectKind.Pc
+                && obj is ICharacter pc
+                && pc.IsValid()
+                && pc.GameObjectId != localPlayer.GameObjectId
+                && pc.CurrentHp > 0)
+            .Select(obj => (ICharacter)obj)
+            .ToArray();
+
+        if (nearbyPlayers.Length == 0)
+        {
+            return;
+        }
+
+        var playerPos = player.Position;
+        float playerDistToDest = Vector2.Distance(new Vector2(playerPos.X, playerPos.Z), new Vector2(destination.X, destination.Z));
+
+        foreach (var other in nearbyPlayers)
+        {
+            float minDist = float.MaxValue;
+            for (int i = 0; i < waypoints.Count; i++)
+            {
+                var d = Vector2.Distance(
+                    new Vector2(other.Position.X, other.Position.Z),
+                    new Vector2(waypoints[i].X, waypoints[i].Z));
+                if (d < minDist) minDist = d;
+            }
+
+            // Player on our path (within threshold of any waypoint) AND ahead of us (closer to destination)
+            if (minDist < movement.PathConflictDistanceThreshold)
+            {
+                float otherDistToDest = Vector2.Distance(
+                    new Vector2(other.Position.X, other.Position.Z),
+                    new Vector2(destination.X, destination.Z));
+
+                if (otherDistToDest < playerDistToDest - movement.PathConflictAheadThreshold)
+                                {
+                                    logger.Warning(
+                                        "[PathConflict] step=\"{Step}\" conflictingPlayer=\"{Name}\" playerDist={PlayerDist:0.0} otherDist={OtherDist:0.0} minDistToPath={MinDist:0.0} action=replan",
+                                        nextStep.Describe(), other.Name, playerDistToDest, otherDistToDest, minDist);
+
+                                    ReplanAfterPathCancel("Path conflict — other player ahead on path");
+                                    return;
+                                }
+            }
         }
     }
 

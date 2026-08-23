@@ -93,29 +93,33 @@ public class InCriticalEncounterHandler
     }
 
     public override void Enter()
-    {
-        base.Enter();
-        memory.Forget<WaitingForCriticalEncounterMemory>();
-        memory.Forget<CommittedCriticalEncounterMemory>();
-        memory.TryAdd(new SuspendTravelForActivityMemory());
-        memory.Forget<GoalPathStepMemory>();
-        pathfinder.Stop();
-        autoRotation.EnableForCriticalEncounter();
-        ushort? ceId = context.GetCriticalEncounterId()?.Value;
-        if (ceId == null
-            && memory.TryRemember<GoalMemory>(out GoalMemory goal)
-            && goal.Goal.GoalType is CriticalEncounterGoal ceGoal)
-        {
-            ceId = ceGoal.id.Value;
-        }
+            {
+                base.Enter();
+                memory.Forget<WaitingForCriticalEncounterMemory>();
+                memory.Forget<CommittedCriticalEncounterMemory>();
+                memory.TryAdd(new SuspendTravelForActivityMemory());
+                memory.Forget<GoalPathStepMemory>();
+                pathfinder.Stop();
+                autoRotation.EnableForCriticalEncounter();
+                ushort? ceId = context.GetCriticalEncounterId()?.Value;
+                if (ceId == null
+                    && memory.TryRemember<GoalMemory>(out GoalMemory goal)
+                    && goal.Goal.GoalType is CriticalEncounterGoal ceGoal)
+                {
+                    ceId = ceGoal.id.Value;
+                }
 
-        if (ceId is ushort entered)
-        {
-            memory.TryAdd(new CommittedCriticalEncounterMemory(new(entered)));
-        }
+                if (ceId is ushort entered)
+                {
+                    memory.TryAdd(new CommittedCriticalEncounterMemory(new(entered)));
+                }
 
-        logger.Info("Entered CE {Id} — travel suspended", ceId?.ToString() ?? "?");
-    }
+                // Apply humanizing randomization on CE start
+                bool isMelee = playerState.IsMelee();
+                config.ApplyRandomization(isMelee);
+
+                logger.Info("Entered CE {Id} — travel suspended", ceId?.ToString() ?? "?");
+            }
 
     public override void Exit(AutomatorState next)
     {

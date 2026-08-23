@@ -58,14 +58,19 @@ public class InFateHandler
     }
 
     public override void Enter()
-    {
-        base.Enter();
-        memory.TryAdd(new SuspendTravelForActivityMemory());
-        memory.Forget<GoalPathStepMemory>();
-        pathfinder.Stop();
-        autoRotation.EnableForFate();
-        logger.Info("Entered FATE {Id} — travel suspended", context.GetFateId()?.Value.ToString() ?? "?");
-    }
+            {
+                base.Enter();
+                memory.TryAdd(new SuspendTravelForActivityMemory());
+                memory.Forget<GoalPathStepMemory>();
+                pathfinder.Stop();
+                autoRotation.EnableForFate();
+
+                // Apply humanizing randomization on FATE start
+                bool isMelee = playerState.IsMelee();
+                config.ApplyRandomization(isMelee);
+
+                logger.Info("Entered FATE {Id} — travel suspended", context.GetFateId()?.Value.ToString() ?? "?");
+            }
 
     public override void Handle()
     {
