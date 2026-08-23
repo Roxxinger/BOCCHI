@@ -1,3 +1,10 @@
+# 4.1.0.9
+
+### Features
+- Shopping: full automatic Antiquarian currency shopping (AOCCH parity). New **Shopping** config page with structured targets — per item Keep amount, Buy amount, Keep Buying and priority; evaluated Keep → Buy → Keep Buying in priority order.
+- Shopping: travels to the Expedition Antiquarian on its own when a currency threshold is met (per territory + currency), opens the right vendor menu entry and tab — verified live against the shop UI before buying.
+- Shopping: per-territory currency reserves (never spend below) and start thresholds. Purchases are verified via inventory changes; game-log failures are classified so a blocked item is skipped instead of blocking the run.
+
 # 4.1.0.7
 
 ### Features

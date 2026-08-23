@@ -1,0 +1,17 @@
+{
+  "label": "Shopping",
+  "tooltip": "Automatic currency shopping at the Expedition Antiquarian.",
+  "fields": {
+    "enable_auto_shop": {
+      "label": "Enable auto shopping",
+      "tooltip": "Travel to the Expedition Antiquarian and buy configured items when a currency threshold is met. Only starts out of combat while no other mode owns movement."
+    },
+    "targets": {
+      "label": "Shopping targets",
+      "tooltip": "Items to buy from the Antiquarian. Evaluated Keep → Buy → Keep Buying, lower priority first.",
+      "remove": "Remove",
+      "add": "Add target",
+      "add_hint": "Add by catalog item ID:"
+    }
+  }
+}

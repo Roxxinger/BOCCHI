@@ -40,9 +40,7 @@ using Ocelot.UI.Services;
 using Ocelot.Windows;
 using System.Reflection;
 using BOCCHI.Services.MOTD;
-#if DEBUG
 using BOCCHI.Services.Shopping;
-#endif
 using BOCCHI.Debug;
 using Ocelot.Lifecycle;
 
@@ -122,9 +120,10 @@ public sealed class Plugin(IDalamudPluginInterface plugin, IPluginLog logger) : 
         services.AddSingleton<RepairStep>();
         services.AddSingleton<IRepairService, RepairService>();
         services.AddSingleton<AethernetTeleportChain>();
-#if DEBUG
+        services.AddSingleton<ShopPageMatcher>();
+        services.AddSingleton<ShopInspectorController>();
+        services.AddSingleton<ShopPurchaseController>();
         services.AddSingleton<ShoppingService>();
-#endif
 
         services.LoadTrackersModule();
         services.LoadWorldModule();
@@ -218,6 +217,9 @@ public sealed class Plugin(IDalamudPluginInterface plugin, IPluginLog logger) : 
         cfg.FatesConfig.DisabledFateIds ??= [];
         cfg.CriticalEncountersConfig.DisabledCriticalEncounterIds ??= [];
         cfg.ShoppingConfig.PreferredItemIds ??= [];
+        cfg.ShoppingConfig.Targets ??= [];
+        cfg.ShoppingConfig.Reserves ??= [];
+        cfg.ShoppingConfig.Thresholds ??= [];
         cfg.MobFarmerConfig.Mobs ??= [];
         SanitizeAutomatorConfig(cfg.AutomatorConfig);
         SanitizeTreasureConfig(cfg.TreasureConfig);

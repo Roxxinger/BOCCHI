@@ -8,6 +8,9 @@
   "treasure": {
     "label": "Treasure Hunter"
   },
+  "shopping": {
+    "label": "Shopping"
+  },
   "ux": {
     "label": "UI"
   },
