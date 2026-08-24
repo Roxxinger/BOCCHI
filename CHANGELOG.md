@@ -1,3 +1,8 @@
+# 4.1.0.11
+
+### Fixes
+- Shopping config: page/tab/item dropdowns now keep their selection — the target editor renderer was rebuilt every frame because it wasn't registered in DI, so dropdown clicks snapped back instantly.
+
 # 4.1.0.10
 
 ### Features
