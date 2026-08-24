@@ -1,3 +1,8 @@
+# 4.1.0.13
+
+### Features
+- Shopping catalog: **North Horn added** — all 3 obol pages from AOCCH's dataset: Silver Obol IL 780 armor (35 Phantom Vision pieces), Silver Obol Other (Tule set, soul shards, North Horn Riding Map, housing, materia, **Final Final Fixative**), and Gold Obol Exchange (Torna/Carwen set, soul shards, fixative). 98 items, costs and rows verified against AOCCH's OccultCrescentData.json.
+
 # 4.1.0.12
 
 ### Fixes

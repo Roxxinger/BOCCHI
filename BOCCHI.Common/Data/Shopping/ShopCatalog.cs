@@ -45,6 +45,8 @@ public static class ShopCatalog
 
     private const string SilverName = "Enlightenment Silver Piece";
     private const string GoldName = "Enlightenment Gold Piece";
+    private const string SilverObolName = "Enlightenment Silver Obol";
+    private const string GoldObolName = "Enlightenment Gold Obol";
 
     public static IReadOnlyList<ShopPageDefinition> Pages { get; } =
     [
@@ -273,6 +275,175 @@ public static class ShopCatalog
                         new() { ItemId = 48143, Name = "Knowledge Crystal Replica", Cost = 960, RowIndex = 8 },
                         new() { ItemId = 50423, Name = "Occult Compass", Cost = 960, RowIndex = 9 },
                         new() { ItemId = 50424, Name = "Occult Pyramicula", Cost = 960, RowIndex = 10 },
+                    ],
+                },
+            ],
+        },
+
+        new ShopPageDefinition
+        {
+            MenuIndex = 0,
+            MenuLabel = "Enlightenment Silver Obol Exchange (IL 780)",
+            CurrencyItemId = 51975,
+            CurrencyName = SilverObolName,
+            Tabs =
+            [
+                new ShopTabDefinition
+                {
+                    TabId = 1,
+                    TabLabel = "Armor",
+                    Items =
+                    [
+                        new() { ItemId = 51811, Name = "Phantom Vision Mask of Fending", Cost = 4000, RowIndex = 0 },
+                        new() { ItemId = 51831, Name = "Phantom Vision Mask of Maiming", Cost = 4000, RowIndex = 1 },
+                        new() { ItemId = 51851, Name = "Phantom Vision Turban of Striking", Cost = 4000, RowIndex = 2 },
+                        new() { ItemId = 51891, Name = "Phantom Vision Turban of Scouting", Cost = 4000, RowIndex = 3 },
+                        new() { ItemId = 51871, Name = "Phantom Vision Turban of Aiming", Cost = 4000, RowIndex = 4 },
+                        new() { ItemId = 51931, Name = "Phantom Vision Nightcap of Casting", Cost = 4000, RowIndex = 5 },
+                        new() { ItemId = 51911, Name = "Phantom Vision Nightcap of Healing", Cost = 4000, RowIndex = 6 },
+                        new() { ItemId = 51812, Name = "Phantom Vision Corselet of Fending", Cost = 4000, RowIndex = 7 },
+                        new() { ItemId = 51832, Name = "Phantom Vision Corselet of Maiming", Cost = 4000, RowIndex = 8 },
+                        new() { ItemId = 51852, Name = "Phantom Vision Robe of Striking", Cost = 4000, RowIndex = 9 },
+                        new() { ItemId = 51892, Name = "Phantom Vision Robe of Scouting", Cost = 4000, RowIndex = 10 },
+                        new() { ItemId = 51872, Name = "Phantom Vision Robe of Aiming", Cost = 4000, RowIndex = 11 },
+                        new() { ItemId = 51932, Name = "Phantom Vision Acton of Casting", Cost = 4000, RowIndex = 12 },
+                        new() { ItemId = 51912, Name = "Phantom Vision Acton of Healing", Cost = 4000, RowIndex = 13 },
+                        new() { ItemId = 51813, Name = "Phantom Vision Vambraces of Fending", Cost = 4000, RowIndex = 14 },
+                        new() { ItemId = 51833, Name = "Phantom Vision Vambraces of Maiming", Cost = 4000, RowIndex = 15 },
+                        new() { ItemId = 51853, Name = "Phantom Vision Wristwraps of Striking", Cost = 4000, RowIndex = 16 },
+                        new() { ItemId = 51893, Name = "Phantom Vision Wristwraps of Scouting", Cost = 4000, RowIndex = 17 },
+                        new() { ItemId = 51873, Name = "Phantom Vision Wristwraps of Aiming", Cost = 4000, RowIndex = 18 },
+                        new() { ItemId = 51933, Name = "Phantom Vision Wristwraps of Casting", Cost = 4000, RowIndex = 19 },
+                        new() { ItemId = 51913, Name = "Phantom Vision Wristwraps of Healing", Cost = 4000, RowIndex = 20 },
+                        new() { ItemId = 51814, Name = "Phantom Vision Bottoms of Fending", Cost = 4000, RowIndex = 21 },
+                        new() { ItemId = 51834, Name = "Phantom Vision Bottoms of Maiming", Cost = 4000, RowIndex = 22 },
+                        new() { ItemId = 51854, Name = "Phantom Vision Sarouel of Striking", Cost = 4000, RowIndex = 23 },
+                        new() { ItemId = 51894, Name = "Phantom Vision Sarouel of Scouting", Cost = 4000, RowIndex = 24 },
+                        new() { ItemId = 51874, Name = "Phantom Vision Sarouel of Aiming", Cost = 4000, RowIndex = 25 },
+                        new() { ItemId = 51934, Name = "Phantom Vision Sarouel of Casting", Cost = 4000, RowIndex = 26 },
+                        new() { ItemId = 51914, Name = "Phantom Vision Sarouel of Healing", Cost = 4000, RowIndex = 27 },
+                        new() { ItemId = 51815, Name = "Phantom Vision Sollerets of Fending", Cost = 4000, RowIndex = 28 },
+                        new() { ItemId = 51835, Name = "Phantom Vision Sollerets of Maiming", Cost = 4000, RowIndex = 29 },
+                        new() { ItemId = 51855, Name = "Phantom Vision Boots of Striking", Cost = 4000, RowIndex = 30 },
+                        new() { ItemId = 51895, Name = "Phantom Vision Boots of Scouting", Cost = 4000, RowIndex = 31 },
+                        new() { ItemId = 51875, Name = "Phantom Vision Boots of Aiming", Cost = 4000, RowIndex = 32 },
+                        new() { ItemId = 51935, Name = "Phantom Vision Crakows of Casting", Cost = 4000, RowIndex = 33 },
+                        new() { ItemId = 51915, Name = "Phantom Vision Crakows of Healing", Cost = 4000, RowIndex = 34 },
+                    ],
+                },
+            ],
+        },
+        new ShopPageDefinition
+        {
+            MenuIndex = 1,
+            MenuLabel = "Enlightenment Silver Obol Exchange (Other)",
+            CurrencyItemId = 51975,
+            CurrencyName = SilverObolName,
+            Tabs =
+            [
+                new ShopTabDefinition
+                {
+                    TabId = 1,
+                    TabLabel = "Armor",
+                    Items =
+                    [
+                        new() { ItemId = 51952, Name = "Tule Tunic", Cost = 1000, RowIndex = 14 },
+                        new() { ItemId = 51953, Name = "Tule Halfgloves", Cost = 1000, RowIndex = 15 },
+                        new() { ItemId = 51954, Name = "Tule Trousers", Cost = 1000, RowIndex = 16 },
+                        new() { ItemId = 51955, Name = "Tule Longboots", Cost = 1000, RowIndex = 17 },
+                    ],
+                },
+                new ShopTabDefinition
+                {
+                    TabId = 3,
+                    TabLabel = "Other",
+                    Items =
+                    [
+                        new() { ItemId = 51967, Name = "Ninja's Soul Shard", Cost = 1000, RowIndex = 0 },
+                        new() { ItemId = 51968, Name = "Black Mage's Soul Shard", Cost = 1000, RowIndex = 1 },
+                        new() { ItemId = 51969, Name = "White Mage's Soul Shard", Cost = 1000, RowIndex = 2 },
+                        new() { ItemId = 51973, Name = "Red Mage's Soul Shard", Cost = 1000, RowIndex = 3 },
+                        new() { ItemId = 51966, Name = "North Horn Riding Map", Cost = 3000, RowIndex = 4 },
+                        new() { ItemId = 52284, Name = "Nymian Uolosapa", Cost = 500, RowIndex = 5 },
+                        new() { ItemId = 52366, Name = "Dungeon (Dawntrail) Orchestrion Roll", Cost = 1000, RowIndex = 6 },
+                        new() { ItemId = 52367, Name = "Sealed Away (Dawntrail) Orchestrion Roll", Cost = 1000, RowIndex = 7 },
+                        new() { ItemId = 51283, Name = "Crescent Stone Pillar", Cost = 400, RowIndex = 8 },
+                        new() { ItemId = 51284, Name = "Crescent Wall Rack", Cost = 400, RowIndex = 9 },
+                        new() { ItemId = 51282, Name = "Winged Scalekin Fossil", Cost = 400, RowIndex = 10 },
+                        new() { ItemId = 47741, Name = "Occult Potion", Cost = 40, RowIndex = 11 },
+                        new() { ItemId = 47740, Name = "Occult Coffer", Cost = 40, RowIndex = 12 },
+                        new() { ItemId = 51978, Name = "Final Final Fixative", Cost = 1200, RowIndex = 13 },
+                        new() { ItemId = 41759, Name = "Savage Aim Materia XI", Cost = 100, RowIndex = 18 },
+                        new() { ItemId = 41772, Name = "Savage Aim Materia XII", Cost = 200, RowIndex = 19 },
+                        new() { ItemId = 41760, Name = "Savage Might Materia XI", Cost = 100, RowIndex = 20 },
+                        new() { ItemId = 41773, Name = "Savage Might Materia XII", Cost = 200, RowIndex = 21 },
+                        new() { ItemId = 41758, Name = "Heavens' Eye Materia XI", Cost = 100, RowIndex = 22 },
+                        new() { ItemId = 41771, Name = "Heavens' Eye Materia XII", Cost = 200, RowIndex = 23 },
+                        new() { ItemId = 41768, Name = "Quickarm Materia XI", Cost = 100, RowIndex = 24 },
+                        new() { ItemId = 41781, Name = "Quickarm Materia XII", Cost = 200, RowIndex = 25 },
+                        new() { ItemId = 41769, Name = "Quicktongue Materia XI", Cost = 100, RowIndex = 26 },
+                        new() { ItemId = 41782, Name = "Quicktongue Materia XII", Cost = 200, RowIndex = 27 },
+                        new() { ItemId = 41761, Name = "Battledance Materia XI", Cost = 100, RowIndex = 28 },
+                        new() { ItemId = 41774, Name = "Battledance Materia XII", Cost = 200, RowIndex = 29 },
+                        new() { ItemId = 41757, Name = "Piety Materia XI", Cost = 100, RowIndex = 30 },
+                        new() { ItemId = 41770, Name = "Piety Materia XII", Cost = 200, RowIndex = 31 },
+                    ],
+                },
+            ],
+        },
+        new ShopPageDefinition
+        {
+            MenuIndex = 2,
+            MenuLabel = "Enlightenment Gold Obol Exchange",
+            CurrencyItemId = 51976,
+            CurrencyName = GoldObolName,
+            Tabs =
+            [
+                new ShopTabDefinition
+                {
+                    TabId = 1,
+                    TabLabel = "Armor",
+                    Items =
+                    [
+                        new() { ItemId = 51957, Name = "Torna Tunic", Cost = 1600, RowIndex = 9 },
+                        new() { ItemId = 51958, Name = "Torna Wristlets", Cost = 1600, RowIndex = 10 },
+                        new() { ItemId = 51960, Name = "Torna Boots", Cost = 1600, RowIndex = 11 },
+                        new() { ItemId = 51961, Name = "Carwen Bandana", Cost = 1600, RowIndex = 12 },
+                        new() { ItemId = 51962, Name = "Carwen Tunic", Cost = 1600, RowIndex = 13 },
+                        new() { ItemId = 51963, Name = "Carwen Armlets", Cost = 1600, RowIndex = 14 },
+                        new() { ItemId = 51964, Name = "Carwen Tights", Cost = 1600, RowIndex = 15 },
+                        new() { ItemId = 51965, Name = "Carwen Boots", Cost = 1600, RowIndex = 16 },
+                    ],
+                },
+                new ShopTabDefinition
+                {
+                    TabId = 3,
+                    TabLabel = "Other",
+                    Items =
+                    [
+                        new() { ItemId = 51970, Name = "Dragoon's Soul Shard", Cost = 1600, RowIndex = 0 },
+                        new() { ItemId = 51971, Name = "Summoner's Soul Shard", Cost = 1600, RowIndex = 1 },
+                        new() { ItemId = 52368, Name = "To the North Mountain (Dawntrail) Orchestrion Roll", Cost = 1600, RowIndex = 2 },
+                        new() { ItemId = 51286, Name = "Blue Crescent Moon", Cost = 800, RowIndex = 3 },
+                        new() { ItemId = 51287, Name = "Yellow Crescent Cube", Cost = 800, RowIndex = 4 },
+                        new() { ItemId = 51288, Name = "Red Crescent Crystal", Cost = 800, RowIndex = 5 },
+                        new() { ItemId = 47741, Name = "Occult Potion", Cost = 50, RowIndex = 6 },
+                        new() { ItemId = 47740, Name = "Occult Coffer", Cost = 50, RowIndex = 7 },
+                        new() { ItemId = 51978, Name = "Final Final Fixative", Cost = 1920, RowIndex = 8 },
+                        new() { ItemId = 41759, Name = "Savage Aim Materia XI", Cost = 160, RowIndex = 17 },
+                        new() { ItemId = 41772, Name = "Savage Aim Materia XII", Cost = 320, RowIndex = 18 },
+                        new() { ItemId = 41760, Name = "Savage Might Materia XI", Cost = 160, RowIndex = 19 },
+                        new() { ItemId = 41773, Name = "Savage Might Materia XII", Cost = 320, RowIndex = 20 },
+                        new() { ItemId = 41758, Name = "Heavens' Eye Materia XI", Cost = 160, RowIndex = 21 },
+                        new() { ItemId = 41771, Name = "Heavens' Eye Materia XII", Cost = 320, RowIndex = 22 },
+                        new() { ItemId = 41768, Name = "Quickarm Materia XI", Cost = 160, RowIndex = 23 },
+                        new() { ItemId = 41781, Name = "Quickarm Materia XII", Cost = 320, RowIndex = 24 },
+                        new() { ItemId = 41769, Name = "Quicktongue Materia XI", Cost = 160, RowIndex = 25 },
+                        new() { ItemId = 41782, Name = "Quicktongue Materia XII", Cost = 320, RowIndex = 26 },
+                        new() { ItemId = 41761, Name = "Battledance Materia XI", Cost = 160, RowIndex = 27 },
+                        new() { ItemId = 41774, Name = "Battledance Materia XII", Cost = 320, RowIndex = 28 },
+                        new() { ItemId = 41757, Name = "Piety Materia XI", Cost = 160, RowIndex = 29 },
+                        new() { ItemId = 41770, Name = "Piety Materia XII", Cost = 320, RowIndex = 30 },
                     ],
                 },
             ],
