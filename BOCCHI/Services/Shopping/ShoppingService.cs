@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using BOCCHI.Common.Config;
+using BOCCHI.Common.Data.Aethernet;
 using BOCCHI.Common.Data.OccultCrescent;
 using BOCCHI.Common.Data.Shopping;
 using BOCCHI.Common.Data.Zones;
@@ -17,6 +18,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using Ocelot.Chain;
 using Ocelot.Extensions;
 using Ocelot.Ipc.VNavmesh;
 using Ocelot.Lifecycle;
@@ -67,6 +69,9 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
     private readonly ITreasureHunter hunter;
     private readonly ICarrotHunter carrotHunter;
     private readonly IPotsTreasureMode potsTreasure;
+    private readonly IChainFactory chains;
+    private readonly IChainManager chainManager;
+    private readonly ITargetManager targets;
     private readonly ILogger<ShoppingService> logger;
     private readonly object gate = new();
 
@@ -87,6 +92,9 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
     private DateTimeOffset menuOpenStartedAt = DateTimeOffset.MinValue;
     private int menuOpenAttempts;
 
+    // Active aethernet teleport task to base camp (null = none).
+    private Task<ChainResult>? teleportTask;
+
     public ShoppingService(
         ShoppingConfig config,
         IZoneProvider zones,
@@ -102,6 +110,9 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
         ITreasureHunter hunter,
         ICarrotHunter carrotHunter,
         IPotsTreasureMode potsTreasure,
+        IChainFactory chains,
+        IChainManager chainManager,
+        ITargetManager targets,
         ILogger<ShoppingService> logger)
     {
         this.config = config;
@@ -118,6 +129,9 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
         this.hunter = hunter;
         this.carrotHunter = carrotHunter;
         this.potsTreasure = potsTreasure;
+        this.chains = chains;
+        this.chainManager = chainManager;
+        this.targets = targets;
         this.logger = logger;
 
         purchases.Completed += OnPurchaseCompleted;
@@ -244,6 +258,11 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
     {
         vnav.Stop();
         purchases.Cancel(reason);
+        if (teleportTask != null)
+        {
+            chainManager.CancelAll();
+            teleportTask = null;
+        }
         phase = Phase.Idle;
         desiredPage = null;
         desiredTab = null;
@@ -314,22 +333,49 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
 
     private void TickTravel()
     {
-        if (!TryFindVendor(out var vendor) || vendor == null)
+        // A teleport chain to base camp is running — wait for it to finish.
+        if (teleportTask != null)
         {
-            // Vendor only exists at base camp — walk there first.
-            var zone = zones.GetZone();
-            if (player.Position.Distance2D(zone.GetAetherytePosition()) > NavigationConstants.CampRadius)
+            if (!teleportTask.IsCompleted)
             {
-                if (vnav.IsNavmeshReady() && EzThrottler.Throttle("Shopping::Travel", 1000))
-                {
-                    vnav.PathfindAndMoveTo(zone.GetAetherytePosition(), false);
-                }
-
-                SetStatus("Shopping | Traveling to base camp.");
+                SetStatus("Shopping | Teleporting to base camp.");
                 return;
             }
 
-            Stop("Skipped: vendor not found at base camp.");
+            if (teleportTask.Result.IsSuccess)
+            {
+                logger.Info("[Shopping] op=teleport-done result=success");
+            }
+            else
+            {
+                logger.Warn($"[Shopping] op=teleport-done result={teleportTask.Result.State}");
+            }
+
+            teleportTask = null;
+            nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
+            SetStatus("Shopping | Teleport finished; locating vendor.");
+            return;
+        }
+
+        if (!TryFindVendor(out var vendor))
+        {
+            // Vendor only spawns at base camp. Teleport there via Lifestream (aethernet hop)
+            // instead of running across the map.
+            var zone = zones.GetZone();
+            var vendorData = zone.GetShoppingVendor();
+            var placeNameId = vendorData?.PreferredAethernetId ?? zone.GetMainAetheryte().Id;
+
+            if (!zone.IsOccultCrescentZone() || !zone.IsUsableAethernetDestination(placeNameId))
+            {
+                Stop("Skipped: base camp aethernet unavailable.");
+                return;
+            }
+
+            teleportTask = chainManager.Manage(
+                chains.Create($"Shopping::Teleport({placeNameId})")
+                    .Then<AethernetTeleportChain, uint>(placeNameId));
+            SetStatus("Shopping | Teleporting to base camp.");
+            logger.Info($"[Shopping] op=teleport-start placeName={placeNameId}");
             return;
         }
 
@@ -395,7 +441,12 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
             return;
         }
 
-        TargetSystem.Instance()->InteractWithObject((FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)vendor.Address, false);
+        // Set target first — interaction without a target is unreliable (AOCCH does the same).
+        targets.Target = vendor;
+        unsafe
+        {
+            TargetSystem.Instance()->InteractWithObject((FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)vendor.Address, false);
+        }
         menuOpenPending = true;
         menuOpenStartedAt = DateTimeOffset.UtcNow;
         menuOpenAttempts++;

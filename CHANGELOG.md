@@ -1,3 +1,9 @@
+# 4.1.0.16
+
+### Fixes
+- Shopping now **teleports to base camp** (Lifestream aethernet hop, same chain as Treasure Hunt) instead of running across the map when the vendor is out of reach.
+- Vendor interaction sets the NPC as target before interacting — standing in front of the Antiquarian doing nothing should be gone.
+
 # 4.1.0.15
 
 ### Fixes
