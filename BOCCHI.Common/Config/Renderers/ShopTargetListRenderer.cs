@@ -51,7 +51,16 @@ public sealed class ShopTargetListRenderer(IZoneProvider zones) : IFieldRenderer
         // Only the current zone's territory key is editable here — matches how AOCCH
         // scopes the whole tab to the active territory.
         var territoryKey = TerritoryKey();
-        var pages = ShopCatalog.Pages.Where(p => p.Tabs.Any(t => t.Items.Count > 0)).ToList();
+        // Show only the pages of the horn the player is currently in — South Horn pays in
+        // pieces (45043/45044), North Horn in obols (51975/51976). Outside the crescent
+        // TerritoryKey() already defaults to SouthHorn, so its pages show.
+        uint[] territoryCurrencies = territoryKey.Equals("NorthHorn", StringComparison.OrdinalIgnoreCase)
+            ? [ShopCatalog.SilverObolItemId, ShopCatalog.GoldObolItemId]
+            : [ShopCatalog.SilverPieceItemId, ShopCatalog.GoldPieceItemId];
+        var pages = ShopCatalog.Pages
+            .Where(p => territoryCurrencies.Contains(p.CurrencyItemId))
+            .Where(p => p.Tabs.Any(t => t.Items.Count > 0))
+            .ToList();
 
         changed |= DrawCurrencyTable(translator, fieldKey, config, territoryKey, pages);
 

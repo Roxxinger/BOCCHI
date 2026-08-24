@@ -1,3 +1,8 @@
+# 4.1.0.14
+
+### Fixes
+- Shopping config: the page dropdown now only lists the shop pages of the horn you are currently in — South Horn shows the 5 piece pages, North Horn the 3 obol pages. No more scrolling past the other horn's catalog.
+
 # 4.1.0.13
 
 ### Features
