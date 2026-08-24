@@ -3,7 +3,10 @@ using BOCCHI.Common.Config;
 using BOCCHI.Common.Data.OccultCrescent;
 using BOCCHI.Common.Data.Shopping;
 using BOCCHI.Common.Data.Zones;
+using BOCCHI.Automator.Services;
 using BOCCHI.Common.Services;
+using BOCCHI.MobFarmer.Services;
+using BOCCHI.Treasure.Services;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.Types;
@@ -59,6 +62,11 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
     private readonly ShopInspectorController inspector;
     private readonly ShopPageMatcher matcher;
     private readonly ShopPurchaseController purchases;
+    private readonly IAutomator automator;
+    private readonly IMobFarmer farmer;
+    private readonly ITreasureHunter hunter;
+    private readonly ICarrotHunter carrotHunter;
+    private readonly IPotsTreasureMode potsTreasure;
     private readonly ILogger<ShoppingService> logger;
     private readonly object gate = new();
 
@@ -89,6 +97,11 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
         IVNavmeshIpc vnav,
         ShopInspectorController inspector,
         ShopPurchaseController purchases,
+        IAutomator automator,
+        IMobFarmer farmer,
+        ITreasureHunter hunter,
+        ICarrotHunter carrotHunter,
+        IPotsTreasureMode potsTreasure,
         ILogger<ShoppingService> logger)
     {
         this.config = config;
@@ -100,6 +113,11 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
         this.vnav = vnav;
         this.inspector = inspector;
         this.purchases = purchases;
+        this.automator = automator;
+        this.farmer = farmer;
+        this.hunter = hunter;
+        this.carrotHunter = carrotHunter;
+        this.potsTreasure = potsTreasure;
         this.logger = logger;
 
         purchases.Completed += OnPurchaseCompleted;
@@ -156,6 +174,12 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
             || condition[ConditionFlag.OccupiedInQuestEvent] || condition[ConditionFlag.Casting])
         {
             reason = "Blocked: player busy.";
+            return false;
+        }
+
+        if (automator.IsActive || farmer.Running || hunter.Running || carrotHunter.Running || potsTreasure.Running)
+        {
+            reason = "Blocked: another automation mode is running.";
             return false;
         }
 
@@ -240,6 +264,12 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
 
         if (phase == Phase.Idle)
         {
+            // Auto-start: thresholds + idle checks are all inside ShouldAutoStart.
+            if (ShouldAutoStart(out _) && Start())
+            {
+                logger.Info("[Shopping] op=auto-start");
+            }
+
             return;
         }
 

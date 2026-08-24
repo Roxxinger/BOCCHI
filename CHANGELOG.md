@@ -1,3 +1,9 @@
+# 4.1.0.15
+
+### Fixes
+- **Shopping never started** — the service was registered but nothing called Start(). Auto-shopping now kicks off by itself when the currency threshold is met and the player is idle.
+- Auto-start now yields to other modes: Illegal Mode / Pots & Treasure / Mob Farmer / Treasure Hunter / Carrot Hunter running, combat or busy states all block the start (AOCCH parity).
+
 # 4.1.0.14
 
 ### Fixes
