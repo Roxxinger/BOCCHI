@@ -860,7 +860,11 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
         return zones.GetZone().IsOccultCrescentZone() && pages.Count > 0;
     }
 
-    private string TerritoryKey() => zones.GetZone().ZoneId.ToString();
+    private string TerritoryKey()
+    {
+        var zoneId = zones.GetZone().ZoneId;
+        return zoneId == ZoneId.Unknown ? "SouthHorn" : zoneId.ToString();
+    }
 
     private bool MatchesTerritory(string key) =>
         string.Equals(key, TerritoryKey(), StringComparison.OrdinalIgnoreCase);

@@ -1,3 +1,9 @@
+# 4.1.0.12
+
+### Fixes
+- Shopping targets added outside the Occult Crescent (or with no zone loaded) were keyed "Unknown" — they vanished from the priority list and were never bought. Editor and buyer now fall back to SouthHorn outside the crescent, and existing "Unknown" entries migrate to SouthHorn on load.
+- Catalog audit: all 5 shop pages verified byte-identical to AOCCH (110 items, costs and rows included) — nothing was actually missing from the catalog itself.
+
 # 4.1.0.11
 
 ### Fixes

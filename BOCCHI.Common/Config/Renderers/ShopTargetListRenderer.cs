@@ -370,7 +370,11 @@ public sealed class ShopTargetListRenderer(IZoneProvider zones) : IFieldRenderer
     {
         try
         {
-            return zones.GetZone().ZoneId.ToString();
+            var zoneId = zones.GetZone().ZoneId;
+            // Outside Occult Crescent the provider returns Unknown. The catalog is shared by
+            // both horns, so default the editor to SouthHorn — otherwise targets added in town
+            // get keyed "Unknown" and silently disappear from both the list and the buyer.
+            return zoneId == ZoneId.Unknown ? "SouthHorn" : zoneId.ToString();
         }
         catch
         {

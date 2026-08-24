@@ -221,6 +221,13 @@ public sealed class Plugin(IDalamudPluginInterface plugin, IPluginLog logger) : 
         cfg.ShoppingConfig.Targets ??= [];
         cfg.ShoppingConfig.Reserves ??= [];
         cfg.ShoppingConfig.Thresholds ??= [];
+        foreach (var target in cfg.ShoppingConfig.Targets)
+        {
+            if (string.IsNullOrWhiteSpace(target.TerritoryKey) || target.TerritoryKey.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                target.TerritoryKey = "SouthHorn";
+            }
+        }
         cfg.MobFarmerConfig.Mobs ??= [];
         SanitizeAutomatorConfig(cfg.AutomatorConfig);
         SanitizeTreasureConfig(cfg.TreasureConfig);
