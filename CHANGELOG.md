@@ -1,3 +1,20 @@
+# 4.1.0.26
+
+### Path Conflict Re-routing Improvements
+- **Standby path pre-computed every frame** (not just during conflict check) — ready for instant swap
+- **Seamless swap uses ** instead of  — no movement pause during handoff
+- **Stale path detection** — if player moved >10m from where standby path was computed, it's discarded and recomputed
+- **Reordered execution**: TickStandbyPath runs BEFORE CheckPathConflict so alternate route is ready on first conflict frame
+
+### Config (user-adjustable in  → Movement → Conflict)
+| Setting | Default | Effect |
+|---------|---------|--------|
+| PathConflictCheckIntervalSeconds | 3s | How often to scan for players on path |
+| PathConflictDistanceThreshold | 5m | Max distance from any waypoint to count as 'on path' |
+| PathConflictAheadThreshold | 2m | How much closer to dest other player must be to trigger
+
+For busy hubs, consider: Interval=5s, Distance=8m, Ahead=3m.
+
 # 4.1.0.25
 
 ### Bug Fix

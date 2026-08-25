@@ -120,9 +120,6 @@ public class PathfindingHandler
             return;
         }
 
-        // Path conflict detection: check for other players on our active path
-        CheckPathConflict(player);
-
         if (pendingPauseReason != null && FinishMountBeforePause())
         {
             return;
@@ -135,6 +132,16 @@ public class PathfindingHandler
         }
 
         path.Update();
+
+        // Keep standby path pre-computed whenever we're on a Pathfind step
+        // Must run BEFORE CheckPathConflict so standby is ready for immediate swap
+        if (path.GetNextPathStep()?.PathStepData is Pathfind(var dest, _))
+        {
+            TickStandbyPath(player, dest);
+        }
+
+        // Path conflict detection: check for other players on our active path
+        CheckPathConflict(player);
 
         // Route calc found nothing while still far from the goal — don't hang forever.
         if (path.RoutingFailed && currentPathTask == null)
@@ -298,8 +305,6 @@ public class PathfindingHandler
         var localPlayer = objects.LocalPlayer;
         if (localPlayer == null) return;
 
-        TickStandbyPath(localPlayer, destination);
-
         // Get nearby players (PCs, alive, not us)
         var nearbyPlayers = objects
             .Where(obj => obj.ObjectKind == ObjectKind.Pc
@@ -372,6 +377,33 @@ public class PathfindingHandler
                 // Goal changed or the calc failed — drop it; a fresh one starts next tick.
                 standbyPathTask = null;
             }
+            else if (standbyPathTask.IsCompleted && !standbyPathTask.IsFaulted && !standbyPathTask.IsCanceled)
+            {
+                // Task completed successfully for same destination.
+                // Check if player moved significantly since path was computed.
+                // The path was computed from some earlier position; if we've moved far,
+                // it's stale and we should restart.
+                try
+                {
+                    var nodes = standbyPathTask.Result;
+                    if (nodes != null && nodes.Count > 0)
+                    {
+                        var pathStart = nodes[0];
+                        float moved = Vector2.Distance(
+                            new Vector2(player.Position.X, player.Position.Z),
+                            new Vector2(pathStart.X, pathStart.Z));
+                        if (moved > 10f)
+                        {
+                            // Player has moved >10m from path start — path is stale
+                            standbyPathTask = null;
+                        }
+                    }
+                }
+                catch
+                {
+                    standbyPathTask = null;
+                }
+            }
 
             return;
         }
@@ -407,8 +439,8 @@ public class PathfindingHandler
             return false;
         }
 
-        pathfinder.Stop();
-        vnav.FollowPath(nodes, fly: false);
+        vnav.Stop();  // Stop current vnavmesh movement instantly
+        vnav.FollowPath(nodes, fly: false);  // Start new route immediately
         return true;
     }
 
