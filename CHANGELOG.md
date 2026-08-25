@@ -1,3 +1,8 @@
+# 4.1.0.23
+
+### Fixes
+- **Opened the wrong shop page then aborted** — the initial page choice picked the first *affordable* menu entry instead of the page holding the configured targets. It now opens the first page that actually has an actionable target (priority order), so the run proceeds to buy instead of stopping with "No actionable targets".
+
 # 4.1.0.22
 
 ### Fixes

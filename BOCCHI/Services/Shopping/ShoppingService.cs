@@ -549,17 +549,16 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
                 return;
             }
 
-            var menuIndex = desiredPage?.MenuIndex ?? SelectFirstAffordableMenuIndex(snapshot);
-            if (menuIndex == null)
+            desiredPage ??= FindFirstActionablePage();
+            if (desiredPage == null)
             {
-                StopCompleted("No affordable catalog page for current currency.");
+                StopCompleted("No actionable targets configured for this territory.");
                 return;
             }
 
-            desiredPage ??= FindPage(menuIndex.Value);
-            if (desiredPage == null)
+            if (!snapshot.MenuEntries.Any(e => e.Index == desiredPage.MenuIndex))
             {
-                Stop($"Failed: no catalog definition for menu index {menuIndex.Value}.");
+                Stop($"Failed: vendor menu lacks expected entry {desiredPage.MenuIndex}.");
                 return;
             }
 
@@ -932,23 +931,27 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
 
     // ---------------------------------------------------------------- helpers
 
-    private int? SelectFirstAffordableMenuIndex(LiveShopSnapshot snapshot)
+    /// <summary>First page (by menu index) holding an actionable configured target.</summary>
+    private ShopPageDefinition? FindFirstActionablePage()
     {
-        foreach (var entry in snapshot.MenuEntries.OrderBy(e => e.Index))
+        if (!TryGetPagesForZone(out var pages))
         {
-            var page = ShopCatalog.Pages.FirstOrDefault(p => p.MenuIndex == entry.Index);
-            if (page == null)
-            {
-                continue;
-            }
+            return null;
+        }
 
-            if (AvailableCurrency(page.CurrencyItemId) >= page.Tabs.SelectMany(t => t.Items).Select(i => (int)i.Cost).DefaultIfEmpty(int.MaxValue).Min())
+        foreach (var page in pages.OrderBy(p => p.MenuIndex))
+        {
+            var available = AvailableCurrency(page.CurrencyItemId);
+            foreach (var tab in page.Tabs)
             {
-                return entry.Index;
+                if (HasActionableTarget(page, tab, available))
+                {
+                    return page;
+                }
             }
         }
 
-        return snapshot.MenuEntries.Count > 0 ? snapshot.MenuEntries[0].Index : null;
+        return null;
     }
 
     private ShopPageDefinition? FindPage(int menuIndex) =>
