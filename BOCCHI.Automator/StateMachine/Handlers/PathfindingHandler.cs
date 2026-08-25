@@ -54,6 +54,11 @@ public class PathfindingHandler
     // Path conflict detection (mirrors AOCCH MovementController.CheckPathConflict)
     private DateTimeOffset lastPathConflictCheck = DateTimeOffset.MinValue;
 
+    // Pre-computed alternate route to the active destination — swapped in on conflict so the
+    // re-route is seamless (no stop-and-recalculate stutter).
+    private Task<List<System.Numerics.Vector3>>? standbyPathTask;
+    private System.Numerics.Vector3 standbyDestination;
+
     public override void Enter()
     {
         base.Enter();
@@ -293,6 +298,8 @@ public class PathfindingHandler
         var localPlayer = objects.LocalPlayer;
         if (localPlayer == null) return;
 
+        TickStandbyPath(localPlayer, destination);
+
         // Get nearby players (PCs, alive, not us)
         var nearbyPlayers = objects
             .Where(obj => obj.ObjectKind == ObjectKind.Pc
@@ -330,16 +337,79 @@ public class PathfindingHandler
                     new Vector2(destination.X, destination.Z));
 
                 if (otherDistToDest < playerDistToDest - movement.PathConflictAheadThreshold)
-                                {
-                                    logger.Warning(
-                                        "[PathConflict] step=\"{Step}\" conflictingPlayer=\"{Name}\" playerDist={PlayerDist:0.0} otherDist={OtherDist:0.0} minDistToPath={MinDist:0.0} action=replan",
-                                        nextStep.Describe(), other.Name, playerDistToDest, otherDistToDest, minDist);
+                {
+                    logger.Warning(
+                        "[PathConflict] step=\"{Step}\" conflictingPlayer=\"{Name}\" playerDist={PlayerDist:0.0} otherDist={OtherDist:0.0} minDistToPath={MinDist:0.0}",
+                        nextStep.Describe(), other.Name, playerDistToDest, otherDistToDest, minDist);
 
-                                    ReplanAfterPathCancel("Path conflict — other player ahead on path");
-                                    return;
-                                }
+                    if (TrySwapToStandbyPath())
+                    {
+                        logger.Warning("[PathConflict] action=swap-to-standby seamless=true");
+                    }
+                    else
+                    {
+                        logger.Warning("[PathConflict] action=replan (no standby ready)");
+                        ReplanAfterPathCancel("Path conflict — other player ahead on path");
+                    }
+
+                    return;
+                }
             }
         }
+    }
+
+    /// <summary>
+    ///     Keeps one alternate route to the active destination pre-computed in the background.
+    ///     Pure vnavmesh.Pathfind — does not touch the running movement.
+    /// </summary>
+    private void TickStandbyPath(Dalamud.Game.ClientState.Objects.Types.IGameObject player, System.Numerics.Vector3 destination)
+    {
+        if (standbyPathTask != null)
+        {
+            if (standbyPathTask.IsCompleted
+                && (standbyDestination != destination || standbyPathTask.IsFaulted || standbyPathTask.IsCanceled))
+            {
+                // Goal changed or the calc failed — drop it; a fresh one starts next tick.
+                standbyPathTask = null;
+            }
+
+            return;
+        }
+
+        standbyDestination = destination;
+        standbyPathTask = vnav.Pathfind(player.Position, destination, fly: false);
+    }
+
+    /// <summary>
+    ///     Swaps movement onto the pre-computed standby route without stopping: vnav.Stop +
+    ///     FollowPath is an instant handoff — no recalculation pause.
+    /// </summary>
+    private bool TrySwapToStandbyPath()
+    {
+        if (standbyPathTask is not { IsCompleted: true } task)
+        {
+            return false;
+        }
+
+        List<System.Numerics.Vector3>? nodes;
+        try
+        {
+            nodes = task.Result;
+        }
+        catch
+        {
+            nodes = null;
+        }
+
+        standbyPathTask = null;
+        if (nodes == null || nodes.Count < 2)
+        {
+            return false;
+        }
+
+        pathfinder.Stop();
+        vnav.FollowPath(nodes, fly: false);
+        return true;
     }
 
     /// <returns>False while still waiting; true when ready to teleport.</returns>
@@ -418,6 +488,7 @@ public class PathfindingHandler
         logger.Debug("{Reason} — dropping route for replan", reason);
         pathfinder.Stop();
         currentPathTask = null;
+        standbyPathTask = null;
         pendingPauseReason = null;
         memory.Forget<GoalPathStepMemory>();
         memory.Forget<BaseTeleportDelayMemory>();

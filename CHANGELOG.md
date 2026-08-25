@@ -1,3 +1,8 @@
+# 4.1.0.24
+
+### Features
+- **Seamless path-conflict re-routing** — while a route is active, one alternate route to the same destination is pre-computed in the background (pure `vnavmesh.Nav.Pathfind`, no movement impact). When a path conflict triggers, the bot now swaps instantly onto the standby route (`Path.Stop` + `Path.MoveTo` handoff) instead of stopping and recalculating from scratch — no more micro-stutters. If no standby is ready yet, it falls back to the old replan.
+
 # 4.1.0.23
 
 ### Fixes
