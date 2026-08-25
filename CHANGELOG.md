@@ -1,3 +1,8 @@
+# 4.1.0.18
+
+### Fixes
+- Unchecking **Enable auto shopping** now aborts a run in progress immediately (it used to keep walking to the vendor until the run finished). Start() also refuses to begin while the toggle is off.
+
 # 4.1.0.17
 
 ### Fixes

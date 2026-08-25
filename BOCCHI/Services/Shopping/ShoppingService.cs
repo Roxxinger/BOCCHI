@@ -249,6 +249,12 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
             return true;
         }
 
+        if (!config.EnableAutoShop)
+        {
+            SetStatus("Automatic shopping disabled.");
+            return false;
+        }
+
         if (!TryGetPagesForZone(out _))
         {
             SetStatus("Failed: shopping requires South Horn or North Horn.");
@@ -305,6 +311,13 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
     public void Update()
     {
         RefreshTriggerStatus();
+
+        // Turning the toggle off aborts a run in progress (AOCCH behavior).
+        if (phase != Phase.Idle && !config.EnableAutoShop)
+        {
+            Stop("Stopped: auto shopping disabled.");
+            return;
+        }
 
         if (phase == Phase.Idle)
         {
