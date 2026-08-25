@@ -1,3 +1,8 @@
+# 4.1.0.21
+
+### Fixes
+- **Stuck at "Approaching vendor (3,9y)" forever** — the approach aimed at a point 2,5y from the vendor with a 1,5y stop range, so the closest it could ever get was ~4y, just outside the 3,25y interaction range. The approach now drives to the vendor itself and stops 2y away.
+
 # 4.1.0.20
 
 ### Features

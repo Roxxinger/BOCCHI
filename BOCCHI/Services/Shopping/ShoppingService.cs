@@ -456,7 +456,9 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
         {
             if (vnav.IsNavmeshReady() && EzThrottler.Throttle("Shopping::Approach", 1000))
             {
-                vnav.PathfindAndMoveCloseTo(vendor.Position.GetApproachPosition(player.Position, 2.5f), false, 1.5f);
+                // Stop 2y from the vendor itself — an approach point offset by 2.5y plus a
+                // 1.5y stop range could never close inside the 3.25y interaction range.
+                vnav.PathfindAndMoveCloseTo(vendor.Position, false, 2.0f);
             }
 
             SetStatus($"Shopping | Approaching vendor ({distance:0.0}y).");
