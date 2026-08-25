@@ -70,8 +70,11 @@ public class Automator
 
     public bool SuspendedForTreasure { get; private set; }
 
+    /// <inheritdoc/>
+    public bool SuspendedForShopping { get; private set; }
+
     public AutomatorState? CurrentState =>
-        IsActive && !SuspendedForTreasure ? StateMachine.State : null;
+        IsActive && !SuspendedForTreasure && !SuspendedForShopping ? StateMachine.State : null;
 
     public void OnStop() => StopAutomation();
 
@@ -89,6 +92,25 @@ public class Automator
         }
 
         // Keep GoalMemory; Treasure Hunt owns vnav while suspended.
+        IllegalModeActivityWork.ForgetTravelLatches(memory);
+        SoftStopPathfinding();
+        autoRotation.DisableAi();
+    }
+
+    public void SetSuspendedForShopping(bool suspended)
+    {
+        if (SuspendedForShopping == suspended)
+        {
+            return;
+        }
+
+        SuspendedForShopping = suspended;
+        if (!suspended)
+        {
+            return;
+        }
+
+        // Keep GoalMemory; Shopping owns vnav while suspended (same contract as treasure).
         IllegalModeActivityWork.ForgetTravelLatches(memory);
         SoftStopPathfinding();
         autoRotation.DisableAi();
@@ -308,7 +330,7 @@ public class Automator
             return;
         }
 
-        if (SuspendedForTreasure)
+        if (SuspendedForTreasure || SuspendedForShopping)
         {
             return;
         }

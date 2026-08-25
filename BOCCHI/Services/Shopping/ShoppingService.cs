@@ -140,6 +140,15 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
     public void Dispose()
     {
         purchases.Completed -= OnPurchaseCompleted;
+        // Never leave Illegal Mode suspended across plugin unload.
+        try
+        {
+            automator.SetSuspendedForShopping(false);
+        }
+        catch
+        {
+            // Plugin teardown — automator may already be disposed.
+        }
     }
 
     public bool IsRunning => phase != Phase.Idle;
@@ -191,9 +200,22 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
             return false;
         }
 
-        if (automator.IsActive || farmer.Running || hunter.Running || carrotHunter.Running || potsTreasure.Running)
+        if (farmer.Running || hunter.Running || carrotHunter.Running || potsTreasure.Running)
         {
             reason = "Blocked: another automation mode is running.";
+            return false;
+        }
+
+        // Shopping only runs under Illegal Mode (user requirement) — never standalone.
+        if (!automator.IsIllegalMode)
+        {
+            reason = "Waiting for Illegal Mode.";
+            return false;
+        }
+
+        if (automator.SuspendedForTreasure)
+        {
+            reason = "Blocked: treasure hunt owns movement.";
             return false;
         }
 
@@ -249,6 +271,8 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
         menuOpenPending = false;
         menuOpenAttempts = 0;
         phase = Phase.Navigating;
+        // Pause Illegal Mode's pipeline — shopping owns vnav until it finishes.
+        automator.SetSuspendedForShopping(true);
         SetStatus("Starting automatic shopping.");
         logger.Info("[Shopping] op=start");
         return true;
@@ -263,6 +287,7 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
             chainManager.CancelAll();
             teleportTask = null;
         }
+        automator.SetSuspendedForShopping(false);
         phase = Phase.Idle;
         desiredPage = null;
         desiredTab = null;

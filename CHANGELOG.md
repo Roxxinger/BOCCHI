@@ -1,3 +1,9 @@
+# 4.1.0.17
+
+### Fixes
+- Shopping runs **only while Illegal Mode is active** — no standalone triggering anymore.
+- While shopping runs, Illegal Mode's pipeline is soft-paused (same contract as treasure hunts): it stops pathing/fighting for goals and no longer fights the shopping movement (the spinning-in-place bug). When the run finishes, Illegal Mode resumes exactly where it was.
+
 # 4.1.0.16
 
 ### Fixes
