@@ -1,3 +1,8 @@
+# 4.1.0.25
+
+### Bug Fix
+- **Shopping matcher was never initialized** — `ShopPageMatcher` field was `readonly` but never assigned in constructor, causing `NullReferenceException` on every navigation tick. Fixed by adding `this.matcher = new ShopPageMatcher();`.
+
 # 4.1.0.24
 
 ### Features

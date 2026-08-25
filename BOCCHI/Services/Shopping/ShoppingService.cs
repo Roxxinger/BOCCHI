@@ -138,6 +138,7 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
         this.pathfinder = pathfinder;
         this.targets = targets;
         this.logger = logger;
+        this.matcher = new ShopPageMatcher();
 
         purchases.Completed += OnPurchaseCompleted;
     }
