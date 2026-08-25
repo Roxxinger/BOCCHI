@@ -1,3 +1,8 @@
+# 4.1.0.22
+
+### Fixes
+- NullReferenceException spam in TickNavigate while the vendor menu was open: menu-entry selection now guards a missing addon / out-of-range entry index, and any unexpected navigation error stops the run with a clear status instead of erroring every frame.
+
 # 4.1.0.21
 
 ### Fixes

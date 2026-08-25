@@ -361,7 +361,15 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
                 TickOpenMenu();
                 break;
             case Phase.Navigating:
-                TickNavigate();
+                try
+                {
+                    TickNavigate();
+                }
+                catch (Exception ex)
+                {
+                    Stop($"Stopped: navigation error — {ex.Message}");
+                }
+
                 break;
             case Phase.Buying:
                 TickBuy();
@@ -559,8 +567,21 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
             {
                 try
                 {
-                    new AddonMaster.SelectIconString(gui.GetAddonByName("SelectIconString", 1).Address)
-                        .Entries[desiredPage.MenuIndex].Select();
+                    var menuAddress = gui.GetAddonByName("SelectIconString", 1).Address;
+                    if (menuAddress == nint.Zero)
+                    {
+                        return;
+                    }
+
+                    var menu = new AddonMaster.SelectIconString(menuAddress);
+                    var entryIndex = desiredPage.MenuIndex;
+                    if (menu.Entries == null || entryIndex >= menu.Entries.Length)
+                    {
+                        logger.Warn($"[Shopping] op=menu-select-skip reason=entry-missing index={entryIndex} count={menu.Entries?.Length ?? 0}");
+                        return;
+                    }
+
+                    menu.Entries[entryIndex].Select();
                     SetStatus($"Shopping | Opening \"{desiredPage.MenuLabel}\".");
                     nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
                     ResetStability();
