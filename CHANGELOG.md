@@ -1,3 +1,8 @@
+# 4.1.0.20
+
+### Features
+- New **Shopping** panel in the debug window (`/debug`): live phase + status, trigger reason, whether the vendor menu / shop window is detected (with live tab, currency and rows), purchase-controller state with the last result, and configured targets vs what the shop actually shows. The fastest way to see why a run is stuck.
+
 # 4.1.0.19
 
 ### Fixes

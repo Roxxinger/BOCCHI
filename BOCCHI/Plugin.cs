@@ -136,6 +136,8 @@ public sealed class Plugin(IDalamudPluginInterface plugin, IPluginLog logger) : 
 
         services.AddBocchiCommands();
         services.LoadDebugModule();
+        services.AddSingleton<Debug.Panels.ShoppingDebugPanel>();
+        services.AddSingleton<IDebugPanel>(sp => sp.GetRequiredService<Debug.Panels.ShoppingDebugPanel>());
     }
 
     private static void BootstrapOcelotModules(IServiceCollection services)
