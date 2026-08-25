@@ -18,11 +18,13 @@ using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using Ocelot.Actions;
 using Ocelot.Chain;
 using Ocelot.Extensions;
 using Ocelot.Ipc.VNavmesh;
 using Ocelot.Lifecycle;
 using Ocelot.Services.Logger;
+using Ocelot.Services.Pathfinding;
 using Ocelot.Services.PlayerState;
 using System.Numerics;
 
@@ -71,6 +73,7 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
     private readonly IPotsTreasureMode potsTreasure;
     private readonly IChainFactory chains;
     private readonly IChainManager chainManager;
+    private readonly IPathfinder pathfinder;
     private readonly ITargetManager targets;
     private readonly ILogger<ShoppingService> logger;
     private readonly object gate = new();
@@ -112,6 +115,7 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
         IPotsTreasureMode potsTreasure,
         IChainFactory chains,
         IChainManager chainManager,
+        IPathfinder pathfinder,
         ITargetManager targets,
         ILogger<ShoppingService> logger)
     {
@@ -131,6 +135,7 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
         this.potsTreasure = potsTreasure;
         this.chains = chains;
         this.chainManager = chainManager;
+        this.pathfinder = pathfinder;
         this.targets = targets;
         this.logger = logger;
 
@@ -397,15 +402,44 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
 
         if (!TryFindVendor(out var vendor))
         {
-            // Vendor only spawns at base camp. Teleport there via Lifestream (aethernet hop)
-            // instead of running across the map.
+            // Vendor only spawns at base camp. Prefer the Return spell (fast, no aetheryte
+            // walk); fall back to the Lifestream aethernet hop while Return is on cooldown.
             var zone = zones.GetZone();
+            if (!zone.IsOccultCrescentZone())
+            {
+                Stop("Skipped: outside Occulent Crescent.".Replace("Occulent", "Occult"));
+                return;
+            }
+
+            if (zone.IsInBasecamp())
+            {
+                // At camp but vendor missing — retry shortly rather than stopping outright
+                // (vendor may be temporarily untargetable).
+                SetStatus("Shopping | Waiting for vendor at base camp.");
+                nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
+                return;
+            }
+
+            if (Actions.Return.CanCast())
+            {
+                var returnChain = ReturnToBaseCamp.Append(
+                    chains.Create("Shopping::Return"),
+                    zones,
+                    condition,
+                    gui,
+                    pathfinder,
+                    vnav);
+                teleportTask = chainManager.Manage(returnChain);
+                SetStatus("Shopping | Casting Return to base camp.");
+                logger.Info("[Shopping] op=return-start");
+                return;
+            }
+
             var vendorData = zone.GetShoppingVendor();
             var placeNameId = vendorData?.PreferredAethernetId ?? zone.GetMainAetheryte().Id;
-
-            if (!zone.IsOccultCrescentZone() || !zone.IsUsableAethernetDestination(placeNameId))
+            if (!zone.IsUsableAethernetDestination(placeNameId))
             {
-                Stop("Skipped: base camp aethernet unavailable.");
+                Stop("Skipped: Return on cooldown and base camp aethernet unavailable.");
                 return;
             }
 

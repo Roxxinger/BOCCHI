@@ -1,3 +1,9 @@
+# 4.1.0.19
+
+### Fixes
+- Shopping travel prefers the **Return spell** (Rückkehr) straight to base camp instead of walking to an aetheryte for a Lifestream hop. Falls back to the aethernet hop only while Return is on cooldown.
+- At base camp with the vendor not yet visible it now waits and retries instead of aborting the run.
+
 # 4.1.0.18
 
 ### Fixes
