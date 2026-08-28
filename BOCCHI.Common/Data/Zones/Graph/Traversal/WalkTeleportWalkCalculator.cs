@@ -186,7 +186,7 @@ public class WalkTeleportWalkCalculator : IGraphCandidateCalculator
     {
         List<PathStep> steps = [];
         Vector3 standOff = departure.GetCampStandOffPosition(start);
-        float ready = DefaultLifestreamReadyRadius();
+        float ready = GetNodeLifestreamReadyRadius(departure);
         if (start.Distance2D(departure.Position) > ready
             && start.Distance2D(standOff) > AethernetNavigation.PathfindArrivalRadius + 0.5f)
         {
@@ -211,7 +211,7 @@ public class WalkTeleportWalkCalculator : IGraphCandidateCalculator
         List<PathStep> steps = [];
 
         // Skip Pathfind only when already inside Lifestream (magenta); stand-off is on that ring.
-        float ready = DefaultLifestreamReadyRadius();
+        float ready = GetNodeLifestreamReadyRadius(departure);
         if (start.Distance2D(departure.Position) > ready)
         {
             Vector3 standOff = departure.GetCampStandOffPosition(start);
@@ -228,6 +228,8 @@ public class WalkTeleportWalkCalculator : IGraphCandidateCalculator
         return steps;
     }
 
-    private static float DefaultLifestreamReadyRadius() =>
-        MathF.Max(2f, AethernetData.DefaultDeadRadius) + AethernetNavigation.PathfindArrivalRadius;
+    private static float GetNodeLifestreamReadyRadius(Node node) =>
+        node.Metadata is TeleportNodeMetadata { DeadRadius: var dead }
+            ? MathF.Max(2f, dead)
+            : MathF.Max(2f, AethernetData.DefaultDeadRadius);
 }

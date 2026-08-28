@@ -1,9 +1,9 @@
 using System.Reflection;
 using BOCCHI.Common.Config.Fields;
+using BOCCHI.Common.UI;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Plugin;
 using Ocelot.Config.Renderers;
-using Ocelot.Graphics;
 using Ocelot.Ipc.BossMod;
 using Ocelot.Ipc.Lifestream;
 using Ocelot.Ipc.RotationSolverReborn;
@@ -29,21 +29,23 @@ public sealed class PluginDependencyStatusRenderer(
 
     public bool Render(object target, PropertyInfo prop, PluginDependencyStatusAttribute attr, Type owner, ITranslator translator)
     {
-        ImGui.TextWrapped(T(translator, "intro"));
+        BocchiUi.MutedWrapped(T(translator, "intro"));
         ImGui.Spacing();
 
-        DrawSection(T(translator, "required"));
+        BocchiUi.SectionTitle(T(translator, "required"));
+        ImGui.Spacing();
         Draw("vnavmesh", "vnavmesh", translator, VnavStatus);
         Draw("Lifestream", "Lifestream", translator, (_, t) => IpcStatus(lifestream.IsAvailable, t));
 
         ImGui.Spacing();
-        DrawSection(T(translator, "optional"));
+        BocchiUi.SectionTitle(T(translator, "optional"));
+        ImGui.Spacing();
         if (automator.CombatAutorotation.UsesCombatAutomation())
         {
-            ImGui.TextWrapped(string.Format(T(translator, "using"), CombatDisplay.Display(automator.CombatAutorotation)));
+            BocchiUi.MutedWrapped(string.Format(T(translator, "using"), CombatDisplay.Display(automator.CombatAutorotation)));
         }
 
-        ImGui.TextWrapped(T(translator, "optional_intro"));
+        BocchiUi.MutedWrapped(T(translator, "optional_intro"));
         ImGui.Spacing();
 
         Draw("Wrath Combo", "WrathCombo", translator, inUse: InUse("WrathCombo"));
@@ -107,7 +109,7 @@ public sealed class PluginDependencyStatusRenderer(
 
         ImGui.TextUnformatted(displayName);
         ImGui.SameLine(280f);
-        ImGui.TextColored(StatusColor(ok, pending), label);
+        BocchiUi.DrawStatusChip(label, StatusKind(ok, pending));
     }
 
     private (string Label, bool Ok, bool Pending) ResolveStatus(
@@ -143,15 +145,8 @@ public sealed class PluginDependencyStatusRenderer(
         return (label, ok, pending);
     }
 
-    private static uint StatusColor(bool ok, bool pending) =>
-        pending ? new Color(255, 196, 0).ToRgba() : (ok ? Color.Green : Color.Red).ToRgba();
-
-    private static void DrawSection(string title)
-    {
-        ImGui.Separator();
-        ImGui.TextUnformatted(title);
-        ImGui.Spacing();
-    }
+    private static BocchiUi.StatusChipKind StatusKind(bool ok, bool pending) =>
+        pending ? BocchiUi.StatusChipKind.Warn : ok ? BocchiUi.StatusChipKind.Ok : BocchiUi.StatusChipKind.Muted;
 
     private static string T(ITranslator translator, string field) =>
         translator.T($"{StatusKey}.{field}");

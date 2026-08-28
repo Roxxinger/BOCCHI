@@ -2,18 +2,21 @@ using BOCCHI.Automator.Services;
 using BOCCHI.Buff.Services;
 using BOCCHI.Common.Config;
 using BOCCHI.Common.Data.Fates;
+using BOCCHI.Common.Data.SupportJobs;
 using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Services;
 using BOCCHI.MobFarmer.Data;
 using BOCCHI.MobFarmer.Services;
+using BOCCHI.Treasure.ChainRecipes;
 using BOCCHI.Treasure.Hunt;
 using BOCCHI.Treasure.Services;
+using Ocelot.Chain;
 using Ocelot.Lifecycle;
 
 namespace BOCCHI.Services;
 
 /// <summary>
-///     Yields Mob Farmer to pots, Treasure Hunt, or knowledge-crystal buffs, then resumes.
+///     Yields Mob Farmer to pots, Treasure Sight, Treasure Hunt, or knowledge-crystal buffs, then resumes.
 /// </summary>
 public sealed class MobFarmerYieldService
 (
@@ -26,6 +29,9 @@ public sealed class MobFarmerYieldService
     IPotCycleTracker potCycle,
     IFateRepository fates,
     IZoneProvider zones,
+    IChainManager chainManager,
+    IChainFactory chains,
+    ISupportJobFactory supportJobs,
     MobFarmerConfig farmerConfig,
     PotsConfig potsConfig,
     BuffConfig buffConfig,
@@ -36,13 +42,25 @@ public sealed class MobFarmerYieldService
 
     private DateTimeOffset nextHuntAt = DateTimeOffset.MinValue;
 
+    private DateTimeOffset nextSightAt = DateTimeOffset.MinValue;
+
     private bool startedPots;
 
     private bool startedHunt;
 
+    private bool startedSight;
+
     private bool startedBuffs;
 
     private bool sawRunning;
+
+    private Task<ChainResult>? sightChain;
+
+    private TimeSpan HuntIntervalMinutes =>
+        TimeSpan.FromMinutes(Math.Max(1, farmerConfig.TreasureHuntIntervalMinutes));
+
+    private TimeSpan SightIntervalMinutes =>
+        TimeSpan.FromMinutes(Math.Max(1, farmerConfig.TreasureSightIntervalMinutes));
 
     public void Update()
     {
@@ -56,8 +74,8 @@ public sealed class MobFarmerYieldService
         if (!sawRunning)
         {
             sawRunning = true;
-            nextHuntAt = DateTimeOffset.UtcNow
-                         + TimeSpan.FromMinutes(Math.Max(1, farmerConfig.TreasureHuntIntervalMinutes));
+            nextHuntAt = DateTimeOffset.UtcNow + HuntIntervalMinutes;
+            nextSightAt = DateTimeOffset.UtcNow + SightIntervalMinutes;
         }
 
         if (farmer.Suspended)
@@ -112,7 +130,15 @@ public sealed class MobFarmerYieldService
                 return;
             }
 
-            nextHuntAt = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(farmerConfig.TreasureHuntIntervalMinutes);
+            nextHuntAt = DateTimeOffset.UtcNow + HuntIntervalMinutes;
+            return;
+        }
+
+        if (farmerConfig.CastTreasureSightAtFarm && TryBeginTreasureSight())
+        {
+            farmer.SetSuspended(true, FarmerYieldReason.TreasureSight);
+            startedSight = true;
+            nextSightAt = DateTimeOffset.UtcNow + SightIntervalMinutes;
         }
     }
 
@@ -125,6 +151,19 @@ public sealed class MobFarmerYieldService
                 {
                     startedPots = false;
                     farmer.SetSuspended(false);
+                }
+
+                break;
+
+            case FarmerYieldReason.TreasureSight:
+                if (startedSight && sightChain is { IsCompleted: true })
+                {
+                    startedSight = false;
+                    sightChain = null;
+                    if (farmer.Suspended)
+                    {
+                        farmer.SetSuspended(false);
+                    }
                 }
 
                 break;
@@ -149,16 +188,28 @@ public sealed class MobFarmerYieldService
                 }
 
                 break;
+
+            case FarmerYieldReason.Shopping:
+                // ShoppingService resumes via NotifyShoppingEnded.
+                break;
         }
     }
 
     private void AbortYields()
     {
         nextHuntAt = DateTimeOffset.MinValue;
+        nextSightAt = DateTimeOffset.MinValue;
         if (startedPots)
         {
             startedPots = false;
             pots.StopManagedFromFarmer();
+        }
+
+        if (startedSight)
+        {
+            startedSight = false;
+            chainManager.CancelWhere(name => name.StartsWith("MobFarmer::TreasureSight", StringComparison.Ordinal));
+            sightChain = null;
         }
 
         if (startedHunt)
@@ -180,6 +231,32 @@ public sealed class MobFarmerYieldService
                 buffRunner.Stop();
             }
         }
+    }
+
+    private bool TryBeginTreasureSight()
+    {
+        if (startedSight || sightChain is { IsCompleted: false })
+        {
+            return false;
+        }
+
+        if (DateTimeOffset.UtcNow < nextSightAt)
+        {
+            return false;
+        }
+
+        if (!SupportJobTreasureSight.CanCast(supportJobs))
+        {
+            return false;
+        }
+
+        // Do not gate on fill % or an existing Sight reading — this yield is how Mob Farmer
+        // refreshes counts (and the first cast of a session). Timed Treasure Hunt still uses
+        // TreasureHuntFillGate.
+        sightChain = chainManager.Manage(
+            chains.Create("MobFarmer::TreasureSight")
+                .Then<HuntTreasureSightChain>());
+        return true;
     }
 
     private bool NeedsPotWork()

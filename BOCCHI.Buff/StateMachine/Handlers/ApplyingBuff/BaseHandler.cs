@@ -49,7 +49,7 @@ public abstract class BaseHandler
             return null;
         }
 
-        if (!IsCorrectJob())
+        if (!(supportJobs.TryGetCurrent(out SupportJob supportJob) && supportJob.Id == GetBuffData().SupportJobId))
         {
             if (!changer.IsBusy())
             {
@@ -70,6 +70,4 @@ public abstract class BaseHandler
     }
 
     private BuffData GetBuffData() => buffs.GetBuffForState(state);
-
-    private bool IsCorrectJob() => supportJobs.TryGetCurrent(out SupportJob supportJob) && supportJob.Id == GetBuffData().SupportJobId;
 }

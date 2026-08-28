@@ -6,13 +6,12 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "types": "wrangler types",
-    "check": "tsc --noEmit",
+    "check": "wrangler types && tsc --noEmit",
     "db:migrate:local": "wrangler d1 migrations apply bocchi-coffer-observations --local",
     "db:migrate:remote": "wrangler d1 migrations apply bocchi-coffer-observations --remote"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260730.1",
     "typescript": "^5.8.3",
-    "wrangler": "^4.118.0"
+    "wrangler": "^4.126.0"
   }
 }

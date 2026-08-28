@@ -1,11 +1,13 @@
+using System.Numerics;
 using Dalamud.Game.Chat;
 using Dalamud.Plugin.Services;
 using Ocelot.Lifecycle;
+using Ocelot.Services.PlayerState;
 
 namespace BOCCHI.Automator.Services.PotTreasure;
 
 /// <summary>Parses Magical Elixir / Cache Me If You Can LogMessages for directional hints.</summary>
-public sealed class PotTreasureHintTracker(IChatGui chat) : IOnStart, IOnStop
+public sealed class PotTreasureHintTracker(IChatGui chat, IPlayer player) : IOnStart, IOnStop
 {
     private readonly object gate = new();
 
@@ -70,7 +72,7 @@ public sealed class PotTreasureHintTracker(IChatGui chat) : IOnStart, IOnStop
 
     private void OnLogMessage(ILogMessage message)
     {
-        if (!TryClassify(message, out PotTreasureHintEvent parsed))
+        if (!TryClassify(message, player.Position, out PotTreasureHintEvent parsed))
         {
             return;
         }
@@ -88,7 +90,7 @@ public sealed class PotTreasureHintTracker(IChatGui chat) : IOnStart, IOnStop
         }
     }
 
-    private static bool TryClassify(ILogMessage message, out PotTreasureHintEvent parsed)
+    private static bool TryClassify(ILogMessage message, Vector3 playerPosition, out PotTreasureHintEvent parsed)
     {
         parsed = null!;
         uint id = message.LogMessageId;
@@ -146,6 +148,7 @@ public sealed class PotTreasureHintTracker(IChatGui chat) : IOnStart, IOnStop
             LogMessageId = id,
             Direction = direction,
             Distance = distance,
+            Origin = playerPosition,
         };
         return true;
     }

@@ -1,4 +1,5 @@
 ﻿using BOCCHI.Automator.Data;
+using BOCCHI.Automator.Services;
 using BOCCHI.Common.Data.StateMemory;
 using BOCCHI.Common.Services;
 using Dalamud.Game.ClientState.Conditions;
@@ -14,7 +15,8 @@ public class DeadHandler
     IPlayer player,
     IAutomatorMemory memory,
     IPathfinder pathfinder,
-    IChainManager chains
+    IChainManager chains,
+    AutoRotationController autoRotation
 ) : ScoreStateHandler<AutomatorState, StatePriority>(AutomatorState.Dead)
 {
     public override StatePriority GetScore() =>
@@ -29,6 +31,14 @@ public class DeadHandler
         // Cancel pot-chest / travel opens too — PathStep-only cancel left Interact spam while dead.
         chains.CancelAll();
         pathfinder.Stop();
+    }
+
+    public override void Exit(AutomatorState next)
+    {
+        // Force RSR/Wrath to re-issue Enable on In CE Enter — Henched IPC during unconscious
+        // can no-op while we still cache "applied".
+        autoRotation.OnRevived();
+        base.Exit(next);
     }
 
     public override void Handle()

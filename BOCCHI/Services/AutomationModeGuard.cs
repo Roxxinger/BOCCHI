@@ -54,7 +54,11 @@ public class AutomationModeGuard
         stopping = true;
         try
         {
-            if (mode == AutomationMode.TreasureHunt
+            if (mode == AutomationMode.Shopping)
+            {
+                SoftSuspendForShopping();
+            }
+            else if (mode == AutomationMode.TreasureHunt
                 && (Automator.IsIllegalMode || Automator.IsCompletionist))
             {
                 // Auto hunt: soft-pause Illegal Mode and resume when the hunt ends. Manual hunt with
@@ -94,7 +98,9 @@ public class AutomationModeGuard
                 StopIllegalOrCompletionist();
             }
 
-            if (mode != AutomationMode.PotsAndTreasure && PotsTreasure.Running)
+            if (mode != AutomationMode.PotsAndTreasure
+                && mode != AutomationMode.Shopping
+                && PotsTreasure.Running)
             {
                 if (PotsTreasure.ManagedByMobFarmer)
                 {
@@ -106,13 +112,29 @@ public class AutomationModeGuard
                 }
             }
 
-            if (mode != AutomationMode.MobFarmer && Farmer.Running && mode != AutomationMode.TreasureHunt)
+            if (mode != AutomationMode.MobFarmer
+                && Farmer.Running
+                && mode != AutomationMode.TreasureHunt
+                && mode != AutomationMode.Shopping)
             {
                 Farmer.Toggle();
             }
 
             // Pots & Treasure / Illegal / Completionist / Mob Farmer filler may own the hunter — leave it running.
-            if (mode is not AutomationMode.TreasureHunt
+            // Shopping needs exclusive pathing — stop any treasure/carrot hunt.
+            if (mode == AutomationMode.Shopping)
+            {
+                if (Hunter.Running)
+                {
+                    Hunter.Toggle();
+                }
+
+                if (CarrotHunter.Running)
+                {
+                    CarrotHunter.Toggle();
+                }
+            }
+            else if (mode is not AutomationMode.TreasureHunt
                 and not AutomationMode.PotsAndTreasure
                 and not AutomationMode.IllegalMode
                 and not AutomationMode.Completionist
@@ -121,7 +143,9 @@ public class AutomationModeGuard
                 Hunter.Toggle();
             }
 
-            if (mode != AutomationMode.CarrotHunt && CarrotHunter.Running)
+            if (mode != AutomationMode.CarrotHunt
+                && mode != AutomationMode.Shopping
+                && CarrotHunter.Running)
             {
                 CarrotHunter.Toggle();
             }
@@ -146,6 +170,25 @@ public class AutomationModeGuard
         }
 
         if (Farmer.Running && Farmer.Suspended && Farmer.YieldReason == FarmerYieldReason.TreasureHunt)
+        {
+            Farmer.SetSuspended(false);
+        }
+    }
+
+    public void NotifyShoppingEnded()
+    {
+        if (stopping)
+        {
+            return;
+        }
+
+        if ((Automator.IsIllegalMode || Automator.IsCompletionist || Automator.IsPotsAndTreasure)
+            && Automator.SuspendedForShopping)
+        {
+            Automator.SetSuspendedForShopping(false);
+        }
+
+        if (Farmer.Running && Farmer.Suspended && Farmer.YieldReason == FarmerYieldReason.Shopping)
         {
             Farmer.SetSuspended(false);
         }
@@ -196,6 +239,19 @@ public class AutomationModeGuard
         finally
         {
             stopping = false;
+        }
+    }
+
+    private void SoftSuspendForShopping()
+    {
+        if (Automator.IsIllegalMode || Automator.IsCompletionist || Automator.IsPotsAndTreasure)
+        {
+            Automator.SetSuspendedForShopping(true);
+        }
+
+        if (Farmer.Running)
+        {
+            Farmer.SetSuspended(true, FarmerYieldReason.Shopping);
         }
     }
 

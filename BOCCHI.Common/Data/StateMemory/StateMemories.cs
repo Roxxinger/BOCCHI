@@ -254,6 +254,13 @@ public sealed class PotChestFarmMemory
 
     public int HintRevisionBaseline { get; set; }
 
+    /// <summary>
+    ///     Where Magical Elixir was used for the pending compass reading. Hints must be applied from
+    ///     this point, not from wherever we happen to be when the log is finally read (often mid-walk
+    ///     or on the next pad after a travel chain blocked the handler).
+    /// </summary>
+    public Vector3? ElixirHintOrigin { get; set; }
+
     /// <summary>Hints already used to narrow the set — for logging how far in we are.</summary>
     public int HintsApplied { get; set; }
 
@@ -312,6 +319,7 @@ public sealed class PotChestFarmMemory
         Candidates.Clear();
         CandidateTotal = 0;
         ElixirAttempts = 0;
+        ElixirHintOrigin = null;
         HintsApplied = 0;
         WaitingForSpawnSince = DateTimeOffset.MinValue;
         PhaseStartedUtc = DateTimeOffset.UtcNow;
@@ -336,6 +344,7 @@ public sealed class PotChestFarmMemory
         CandidateTotal = Candidates.Count;
         HintsApplied++;
         ElixirAttempts = 0;
+        ElixirHintOrigin = null;
         SettledAtUtc = DateTimeOffset.MinValue;
         Phase = PotChestFarmPhase.SearchingCandidates;
         PhaseStartedUtc = DateTimeOffset.UtcNow;

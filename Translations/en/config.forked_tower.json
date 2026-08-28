@@ -7,15 +7,14 @@
   "fields": {
     "draw_potential_trap_positions": {
       "label": "Show possible trap spots",
-      "tooltip": "Draw circles on known trap spawn points while inside South Horn Forked Tower."
+      "tooltip": "Draw circles on known trap spawn points inside South Horn Forked Tower."
     },
     "show_registration_countdown": {
       "label": "Show registration countdown",
-      "tooltip": "Show the Forked Tower registration / warmup countdown in the Critical Encounters list (South Horn)."
+      "tooltip": "Show Forked Tower registration / warmup countdown in the Critical Encounters list (South Horn)."
     },
     "trap_draw_range": {
-      "label": "Only show traps within (yalms)",
-      "tooltip": "Hide trap markers farther away than this."
+      "label": "Only show traps within (yalms)"
     }
   }
 }

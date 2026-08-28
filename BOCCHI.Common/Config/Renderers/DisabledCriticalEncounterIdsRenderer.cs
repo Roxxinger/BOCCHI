@@ -5,13 +5,12 @@ using Dalamud.Plugin.Services;
 using Lumina.Excel;
 using Ocelot.Config.Renderers;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using System.Reflection;
 using XIVDynamicEvent = Lumina.Excel.Sheets.DynamicEvent;
 
 namespace BOCCHI.Common.Config.Renderers;
 
-public class DisabledCriticalEncounterIdsRenderer(IZoneProvider zones, IDataManager data, IUIService ui)
+public class DisabledCriticalEncounterIdsRenderer(IZoneProvider zones, IDataManager data)
     : IFieldRenderer<DisabledCriticalEncounterIdsAttribute>
 {
     public bool Render(object target, PropertyInfo prop, DisabledCriticalEncounterIdsAttribute attr, Type owner, ITranslator translator)
@@ -27,7 +26,6 @@ public class DisabledCriticalEncounterIdsRenderer(IZoneProvider zones, IDataMana
             prop,
             owner,
             translator,
-            ui,
             nameof(DisabledCriticalEncounterIdsRenderer),
             criticalEncounters,
             id =>

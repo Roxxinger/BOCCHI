@@ -1,4 +1,6 @@
 using BOCCHI.Buff.Data;
+using BOCCHI.Common.Config;
+using BOCCHI.Common.Data.Aethernet;
 using BOCCHI.Common.Data.KnowledgeCrystals;
 using BOCCHI.Common.Data.StateMemory;
 using BOCCHI.Common.Data.Zones;
@@ -19,10 +21,20 @@ public class ApproachingKnowledgeCrystalHandler
     IPlayer player,
     IPathfinder pathfinder,
     ICondition conditions,
-    IAutomatorMemory memory
+    IObjectTable objects,
+    IAutomatorMemory memory,
+    MovementConfig movement
 ) : FlowStateHandler<BuffState>(BuffState.ApproachingKnowledgeCrystal)
 {
     private const float CrystalInteractionRange = 5f;
+
+    /// <summary>
+    ///     Stand inside cast range after vnav's arrival slack. Aiming at 4.8y with a 1y stop
+    ///     left people parked at ~5.1–5.8y — outside cast range — and re-queued forever.
+    /// </summary>
+    private const float CrystalApproachRange = CrystalInteractionRange - 1.25f;
+
+    private const float ArrivalRadius = AethernetNavigation.PathfindArrivalRadius;
 
     public override BuffState? Handle()
     {
@@ -45,12 +57,12 @@ public class ApproachingKnowledgeCrystalHandler
         {
             pathfinder.Stop();
 
-        if (DismountAssist.TryDismount(conditions))
-        {
-            return null;
-        }
+            if (DismountAssist.TryDismount(conditions))
+            {
+                return null;
+            }
 
-        return BuffState.ChoosingBuffToApply;
+            return BuffState.ChoosingBuffToApply;
         }
 
         // Standalone Apply Buffs /buff — cast in place only; Illegal Mode still walks in.
@@ -63,24 +75,35 @@ public class ApproachingKnowledgeCrystalHandler
             return null;
         }
 
-        if (pathfinder.GetState() != PathfindingState.Idle)
-        {
-            return null;
-        }
-
         BuffZone? buffZone = zone.GetBuffZone();
         KnowledgeCrystalData closest = crystals[0];
         // Prefer the authored camp annulus only when the closest crystal is that camp crystal.
         Vector3 destination = buffZone is { } bz
             && Vector3.DistanceSquared(closest.Position, bz.Center) <= 900f
                 ? bz.GetApproachPoint(player.Position)
-                : closest.Position.GetApproachPosition(player.Position, CrystalInteractionRange - 0.2f);
+                : closest.Position.GetApproachPosition(player.Position, CrystalApproachRange);
 
-        pathfinder.PathfindAndMoveTo(new(destination)
+        float distToDest = player.Position.Distance2D(destination);
+
+        // Same guard as aetheryte approach: do not re-queue when already on the stand-off tile.
+        if (pathfinder.GetState() == PathfindingState.Idle && distToDest > ArrivalRadius)
         {
-            DistanceThreshold = 1.0f,
-            ShouldSnapToFloor = true
-        });
+            pathfinder.PathfindAndMoveTo(new(destination)
+            {
+                DistanceThreshold = ArrivalRadius,
+                // Crystal pads sit on aetheryte mesh — floor snap jumps to the wrong side.
+                ShouldSnapToFloor = false,
+            });
+        }
+
+        MountWait.TryCastIfNeeded(
+            conditions,
+            objects,
+            destination,
+            movement.ShouldAutoMount,
+            movement.PreferredMountId,
+            inBaseCamp: zone.IsInBasecamp(),
+            zone: zone);
 
         return null;
     }

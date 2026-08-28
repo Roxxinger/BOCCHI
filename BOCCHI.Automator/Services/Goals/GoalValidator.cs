@@ -67,7 +67,9 @@ public class GoalValidator
         if (ce.IsPreparing())
         {
             // Prefer pot FATEs: drop a CE you are still walking to when a live pot is up.
-            if (!IsCommittedToCriticalEncounter(id) && HasLivePreferredPot())
+            if (!IsCommittedToCriticalEncounter(id)
+                && automatorConfig.PreferPotFates
+                && TryFindLiveAllowedPot(out Fate _))
             {
                 logger.Debug(
                     "Invalidating CE {CeId} (still pathing) — Prefer pot FATEs, live pot up",
@@ -75,7 +77,8 @@ public class GoalValidator
                 return false;
             }
 
-            return PassesCompletionistCriticalEncounter(id.Value);
+            return !automatorContext.IsCompletionist
+                   || fieldNotes.ShouldPursueCriticalEncounter(id.Value);
         }
 
         if (!ce.IsActive())
@@ -236,7 +239,7 @@ public class GoalValidator
             automatorConfig.PreferPotFates,
             automatorConfig.ShouldFarmPotChests,
             automatorConfig.ShouldPrepositionToPots);
-        TimeSpan cutoff = GetIllegalFateCutoff();
+        TimeSpan cutoff = TimeSpan.FromMinutes(Math.Max(0, potsConfig.FateFallbackCutoffMinutes));
         PotFallbackStartDecision decision = PotFallbackWindow.Evaluate(
             cycle,
             DateTimeOffset.UtcNow,
@@ -333,18 +336,10 @@ public class GoalValidator
             player.Position);
     }
 
-    private bool HasLivePreferredPot() =>
-        automatorConfig.PreferPotFates
-        && TryFindLiveAllowedPot(out Fate _);
-
     private bool PassesCompletionistFate(uint fateId, bool potsOnly) =>
         potsOnly
         || !automatorContext.IsCompletionist
         || fieldNotes.ShouldPursueFate(fateId);
-
-    private bool PassesCompletionistCriticalEncounter(uint encounterId) =>
-        !automatorContext.IsCompletionist
-        || fieldNotes.ShouldPursueCriticalEncounter(encounterId);
 
     /// <summary>
     ///     Predicted pot goal kept before the FATE exists (and briefly after predicted spawn).
@@ -391,9 +386,6 @@ public class GoalValidator
             potsConfig.PotSpawnLeadMinutes,
             true);
     }
-
-    private TimeSpan GetIllegalFateCutoff() =>
-        TimeSpan.FromMinutes(Math.Max(0, potsConfig.FateFallbackCutoffMinutes));
 
     private bool TryFindLiveAllowedPot(out Fate pot)
     {

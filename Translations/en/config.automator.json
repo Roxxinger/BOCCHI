@@ -1,10 +1,10 @@
 {
   "label": "General",
-  "tooltip": "FATEs, Critical Encounters, pots, BOCCHI AI, Triage Mode, Return, and repair.",
+  "tooltip": "FATEs, Critical Encounters, pots, BOCCHI AI, Triage Mode, treasure, delays, and repair.",
   "sections": {
     "activities": "Activities",
     "combat": "Combat",
-    "travel": "Travel",
+    "travel": "Illegal Mode travel",
     "jobs": "Phantom jobs",
     "triage": "Triage",
     "treasure": "Treasure",
@@ -13,63 +13,60 @@
   },
   "fields": {
     "should_do_fates": {
-      "label": "Do FATEs",
-      "tooltip": "Go to and complete FATEs."
+      "label": "Do FATEs"
     },
     "prefer_pot_fates": {
       "label": "Prefer pot FATEs",
-      "tooltip": "Always do Magic Pot FATEs (priority: pot → CE → other FATEs). Off: CE → pot → other. On the FATEs page, pots stay checked as required until you turn this off."
+      "tooltip": "On: always do Magic Pot FATEs (order: pot, then CE, then other FATEs).\nOff: CE, then pot, then other.\nWhile on, pots stay required on the FATEs page."
     },
     "should_farm_pot_chests": {
       "label": "Farm pot chests after pot FATEs",
-      "tooltip": "After a pot FATE, drink Magical Elixir and follow the compass while Cache Me If You Can lasts. No compass hint? It walks known chest spots instead."
+      "tooltip": "On: after a pot FATE, drink Magical Elixir and follow the compass while Cache Me lasts. No hint: walks known chest spots instead.\nOff: leave after the pot FATE without farming chests."
     },
     "should_preposition_to_pots": {
       "label": "Wait near pots before they spawn",
-      "tooltip": "Leave early and wait near the next pot spawn. Timing is under Pot timing. Needs Do FATEs, and that pot allowed (or Prefer pot FATEs)."
+      "tooltip": "On: leave early and wait near the next pot. Timing is under Pot timing. Needs Do FATEs, and that pot allowed (or Prefer pot FATEs).\nOff: do not leave early for pots."
     },
     "should_do_critical_encounters": {
-      "label": "Do Critical Encounters",
-      "tooltip": "Go to and complete Critical Encounters."
+      "label": "Do Critical Encounters"
     },
     "leave_fate_travel_for_ce_seconds": {
       "label": "Leave FATE travel for a CE when (seconds left)",
-      "tooltip": "While walking to a FATE, switch to a CE only when its registration has this many seconds or fewer left. Higher = leave the FATE trip sooner. 0 = switch as soon as a CE is up. Already in or fighting the FATE: finish it first."
+      "tooltip": "While walking to a FATE, switch to a CE only when registration has this many seconds or fewer left. Higher = leave sooner. 0 = switch as soon as a CE is up. Already in the FATE: finish it first."
     },
     "combat_autorotation": {
       "label": "Combat autorotation",
-      "tooltip": "Which autorotation to use in FATEs, CEs, and Mob Farmer fights. Off while traveling or pulling. None = you fight."
+      "tooltip": "Which plugin runs your rotation in FATEs, CEs, and Mob Farmer fights.\nPaused while traveling or pulling.\nNone: you fight manually."
     },
     "update_boss_mod_presets_automatically": {
       "label": "Update presets automatically",
-      "tooltip": "When on, Illegal Mode rebuilds the BOCCHI AI FATE/CE presets (or the matching BossMod autorotation pair) from the distance, overdodge, and delay settings below on start and when you change job or melee/ranged. When off, existing presets are kept and only created if missing.",
+      "tooltip": "On: rewrite BOCCHI AI presets from the settings below when they change, Illegal Mode starts, or you change job / melee / ranged.\nOff: keep current presets; press Update presets to apply the settings below.",
       "button": "Update presets",
-      "button_tooltip": "Rebuild the BOCCHI AI FATE and CE presets (or the matching BossMod autorotation pair) from the settings below. Overwrites other BossMod edits on those presets."
+      "button_tooltip": "Rebuild BOCCHI AI presets from the settings below now. Overwrites other BossMod edits on those presets.",
+      "button_tooltip_auto_on": "Not needed while Update presets automatically is on."
     },
     "boss_mod_movement": {
       "max_distance_by_role": {
         "label": "Set max distance to target based on role",
-        "tooltip": "Melee uses the melee distance (or stay on hitbox). Ranged, caster, and healer use the ranged distance."
+        "tooltip": "On: melee uses melee distance (or stay on hitbox); ranged / caster / healer use ranged distance.\nOff: one shared max distance."
       },
       "melee_on_hitbox": {
         "label": "Melee stay on hitbox",
-        "tooltip": "Melee jobs stand on the edge of the target hitbox. Turn off to set a distance in yalms instead. Sage always uses 5y and Dancer 10y when distance-by-role is on."
+        "tooltip": "On: melee stands on the hitbox edge.\nOff: use the melee distance in yalms. Sage always 5y and Dancer 10y when distance-by-role is on."
       },
       "max_distance": {
-        "label": "Max distance to target",
-        "tooltip": "How far BOCCHI AI may stay from the target (yalms)."
+        "label": "Max distance to target"
       },
       "max_distance_melee": {
         "label": "Max distance to target | Melee",
-        "tooltip": "Melee max distance to the target (yalms). Ignored while Melee stay on hitbox is on."
+        "tooltip": "Ignored while Melee stay on hitbox is on."
       },
       "max_distance_ranged": {
-        "label": "Max distance to target | Ranged",
-        "tooltip": "Ranged, caster, and healer max distance to the target (yalms)."
+        "label": "Max distance to target | Ranged"
       },
       "overdodge": {
         "label": "Overdodge",
-        "tooltip": "Extra space BossMod keeps from dangerous areas while pathfinding.",
+        "tooltip": "Extra space from dangerous areas while pathfinding.",
         "none": "None",
         "small": "Small (0.5y)",
         "medium": "Medium (1.5y)",
@@ -77,30 +74,29 @@
       },
       "delay": {
         "label": "Delay movement",
-        "tooltip": "Wait this long before BOCCHI AI starts moving. Keep this low or you can get hit.",
+        "tooltip": "Wait this long before BOCCHI AI starts moving. Keep low or you can get hit.",
         "none": "None",
         "short": "Short (0.5s)",
         "long": "Long (1s)"
       },
       "separate_dodge_delay": {
         "label": "Separate dodge delay",
-        "tooltip": "Use a different delay when BOCCHI AI is dodging AoEs instead of the delay above."
+        "tooltip": "On: use Dodge delay movement for AoE dodges instead of Delay movement.\nOff: use Delay movement for AoE dodges too."
       },
       "dodge_delay": {
         "label": "Dodge delay movement",
-        "tooltip": "Wait this long before BOCCHI AI starts a dodge. Only used when Separate dodge delay is on.",
+        "tooltip": "Only used when Separate dodge delay is on.",
         "none": "None",
         "short": "Short (0.5s)",
         "long": "Long (1s)"
       }
     },
     "stay_mounted_while_waiting_for_ce": {
-      "label": "Stay mounted while waiting for CEs",
-      "tooltip": "Stay on your mount after you arrive at a CE that is still preparing."
+      "label": "Stay mounted while waiting for CEs"
     },
     "stop_after_return": {
       "label": "Stop after return and teleport",
-      "tooltip": "After a FATE or CE, Return, teleport toward the next one, mount, then stop. Toggle Illegal Mode to resume."
+      "tooltip": "On: after a FATE or CE: Return, teleport toward the next one, mount, then stop. Toggle Illegal Mode to resume.\nOff: keep running after Return."
     },
     "phantom_jobs_leveling_mode": {
       "label": "Level phantom jobs automatically",
@@ -112,17 +108,16 @@
     },
     "preferred_triage_raise_job": {
       "label": "Triage raise job",
-      "tooltip": "Which phantom job to use for raises.",
       "chemist": "Phantom Chemist",
       "white_mage": "Phantom White Mage"
     },
     "should_cast_treasure_sight": {
       "label": "Cast Treasure Sight at camp",
-      "tooltip": "At camp, cast Treasure Sight on a timer."
+      "tooltip": "On: cast Sight at camp on the interval below.\nOff: do not cast Sight at camp on a timer.",
+      "tooltip_disabled": "Unavailable while Auto treasure hunt is on. That option casts Sight after a FATE or CE instead. Turn it off to use camp Sight on a timer."
     },
     "treasure_sight_recast_interval_seconds": {
-      "label": "Treasure Sight every (seconds)",
-      "tooltip": "How often to cast Treasure Sight at camp."
+      "label": "Interval (seconds)"
     },
     "max_remote_idle_time_seconds": {
       "label": "Max wait before Return (seconds)",

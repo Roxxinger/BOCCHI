@@ -1,4 +1,5 @@
 using BOCCHI.Common.Data.Aethernet;
+using BOCCHI.Common.Data.CriticalEncounters;
 using BOCCHI.Common.Data.KnowledgeCrystals;
 using BOCCHI.Common.Data.Zones.Graph;
 using BOCCHI.Common.Data.Zones.Graph.Factory;
@@ -242,10 +243,15 @@ public abstract class BaseZone
                 continue;
             }
 
-            meta.CombatRadius = combatRadius;
+            meta.CombatRadius = SanitizeCombatRadius(combatRadius);
             meta.AreaShape = shape;
         }
     }
+
+    private static float SanitizeCombatRadius(float combatRadius) =>
+        combatRadius > 0f && combatRadius <= CriticalEncounter.MaxRegistrationRadius
+            ? combatRadius
+            : CriticalEncounter.FallbackRegistrationRadius;
 
     public void InvalidateGraph(string? reason = null)
     {
@@ -288,8 +294,7 @@ public abstract class BaseZone
         string dir = Path.Combine(plugin.GetPluginConfigDirectory(), "zone_graphs");
         Directory.CreateDirectory(dir);
 
-        // Bump GraphSchemaVersion when walk-cost / edge semantics or which nodes are wired change.
-        // Also refresh Data/ZoneGraphs/{TerritoryType}.vN.json when bumping.
+        // Bump GraphSchemaVersion when walk-cost / edge semantics or wired nodes change.
         string fileName = $"{TerritoryType}.v{GraphSchemaVersion}.json";
         string path = Path.Combine(dir, fileName);
 

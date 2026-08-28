@@ -3,7 +3,6 @@
   "fields": {
     "status": {
       "label": "Status",
-      "tooltip": "Whether helper plugins are installed and working.",
       "intro": "Travel plugins must be ready. For combat, only what you picked under General → Combat needs to be ready.",
       "required": "Travel",
       "optional": "Combat",

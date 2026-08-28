@@ -9,10 +9,11 @@ public static class IServiceCollectionExtensions
 {
     public static void LoadTreasureModule(this IServiceCollection services)
     {
+        services.AddSingleton<CarrotLocationSyncService>();
+        services.AddSingleton<CofferLocationSyncService>();
         services.AddSingleton<ITreasureTracker, TreasureTracker>();
         services.AddSingleton<ICarrotTracker, CarrotTracker>();
         services.AddSingleton<ITreasureHunter, TreasureHunterService>();
-        services.AddSingleton<FortuneCarrotAssist>();
         services.AddSingleton<ICarrotHunter, CarrotHunterService>();
         services.AddSingleton<NinjaHideAssist>();
         services.AddSingleton<Func<ITreasureHunter>>(sp => () => sp.GetRequiredService<ITreasureHunter>());

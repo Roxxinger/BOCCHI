@@ -1,8 +1,8 @@
 using BOCCHI.Common.Data.Zones.Graph;
+using BOCCHI.Common.UI;
 using Dalamud.Bindings.ImGui;
 using Ocelot.Extensions;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using System.Reflection;
 
 namespace BOCCHI.Common.Config.Renderers;
@@ -15,7 +15,6 @@ internal static class DisabledActivityIdsHelper
         PropertyInfo prop,
         Type owner,
         ITranslator translator,
-        IUIService ui,
         string rendererName,
         IReadOnlyList<ActivityData> activities,
         Func<uint, string> nameForId,
@@ -36,61 +35,69 @@ internal static class DisabledActivityIdsHelper
             prop.SetValue(target, disabled);
         }
 
-        prop.Label(owner, translator);
+        BocchiUi.SectionTitle(prop.Label(owner, translator));
         prop.Tooltip(owner, translator);
 
         if (activities.Count == 0)
         {
             string emptyKey = prop.GetFieldLabelKey(owner).Replace(".label", ".empty", StringComparison.Ordinal);
-            ui.Text(translator.T(emptyKey));
+            BocchiUi.MutedText(translator.T(emptyKey));
             return false;
         }
 
         if (!string.IsNullOrEmpty(forcedOnNote))
         {
-            ui.Text(forcedOnNote);
+            BocchiUi.MutedText(forcedOnNote);
         }
 
         bool changed = false;
-        foreach (ActivityData activity in activities)
+        BocchiUi.PushFieldStyle();
+        try
         {
-            uint id = (uint)activity.Id;
-            string name = nameForId(id);
-            string? forcedReason = forcedOnReason?.Invoke(id);
-            bool forcedOn = !string.IsNullOrEmpty(forcedReason);
-            bool enabled = forcedOn || !disabled.Contains(id);
-            string label = forcedOn && !string.IsNullOrEmpty(forcedOnSuffix)
-                ? $"{name} (#{activity.Id}){forcedOnSuffix}"
-                : $"{name} (#{activity.Id})";
-
-            ImGui.PushID(activity.Id);
-            if (forcedOn)
+            foreach (ActivityData activity in activities)
             {
-                ImGui.BeginDisabled();
-            }
+                uint id = (uint)activity.Id;
+                string name = nameForId(id);
+                string? forcedReason = forcedOnReason?.Invoke(id);
+                bool forcedOn = !string.IsNullOrEmpty(forcedReason);
+                bool enabled = forcedOn || !disabled.Contains(id);
+                string label = forcedOn && !string.IsNullOrEmpty(forcedOnSuffix)
+                    ? $"{name} (#{activity.Id}){forcedOnSuffix}"
+                    : $"{name} (#{activity.Id})";
 
-            if (ImGui.Checkbox(label, ref enabled) && !forcedOn)
-            {
-                if (enabled)
+                ImGui.PushID(activity.Id);
+                if (forcedOn)
                 {
-                    changed |= disabled.Remove(id);
+                    ImGui.BeginDisabled();
                 }
-                else
-                {
-                    changed |= disabled.Add(id);
-                }
-            }
 
-            if (forcedOn)
-            {
-                ImGui.EndDisabled();
-                if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                if (ImGui.Checkbox(label, ref enabled) && !forcedOn)
                 {
-                    Ocelot.Extensions.PropertyInfoExtensions.DrawWrappedTooltip(forcedReason!);
+                    if (enabled)
+                    {
+                        changed |= disabled.Remove(id);
+                    }
+                    else
+                    {
+                        changed |= disabled.Add(id);
+                    }
                 }
-            }
 
-            ImGui.PopID();
+                if (forcedOn)
+                {
+                    ImGui.EndDisabled();
+                    if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                    {
+                        Ocelot.Extensions.PropertyInfoExtensions.DrawWrappedTooltip(forcedReason!);
+                    }
+                }
+
+                ImGui.PopID();
+            }
+        }
+        finally
+        {
+            BocchiUi.PopFieldStyle();
         }
 
         if (changed)

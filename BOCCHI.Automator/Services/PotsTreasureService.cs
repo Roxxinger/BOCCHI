@@ -214,6 +214,12 @@ public class PotsTreasureService
             return;
         }
 
+        if (automator.SuspendedForShopping)
+        {
+            SoftPauseMovement();
+            return;
+        }
+
         if (!ManagedByMobFarmer)
         {
             hunter.ManagedByPotsTreasure = true;

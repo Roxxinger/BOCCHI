@@ -93,14 +93,20 @@ public class MobFarmerConfig : IAutoConfig
     public bool YieldToPots { get; set; } = false;
 
     [Checkbox(Order = 26, Section = "yields")]
-    public bool YieldToTreasureHunt { get; set; } = false;
+    public bool CastTreasureSightAtFarm { get; set; } = false;
 
-    [IntRange(5, 60, Order = 27, Indent = 1, Requires = nameof(YieldToTreasureHunt), Section = "yields")]
-    public int TreasureHuntIntervalMinutes { get; set; } = 15;
+    [IntRange(5, 60, Order = 27, Indent = 1, Requires = nameof(CastTreasureSightAtFarm), Section = "yields")]
+    public int TreasureSightIntervalMinutes { get; set; } = 15;
 
     [Checkbox(Order = 28, Section = "yields")]
+    public bool YieldToTreasureHunt { get; set; } = false;
+
+    [IntRange(5, 60, Order = 29, Indent = 1, Requires = nameof(YieldToTreasureHunt), Section = "yields")]
+    public int TreasureHuntIntervalMinutes { get; set; } = 15;
+
+    [Checkbox(Order = 30, Section = "yields")]
     public bool YieldToCrystalBuffs { get; set; } = false;
 
-    [Checkbox(Order = 29, Section = "debug")]
+    [Checkbox(Order = 31, Section = "debug")]
     public bool RenderDebugLines { get; set; } = false;
 }

@@ -461,9 +461,10 @@ public class ActivityNavigation
                     pathfinder,
                     vnav,
                     lifestream,
+                    conditions,
+                    movementConfig,
                     logger,
-                    target.Id,
-                    movementConfig.SprintOnAetheryteApproach);
+                    target.Id);
 
                 _ = manager.Manage(chain);
             }).ConfigureAwait(false);
@@ -505,9 +506,10 @@ public class ActivityNavigation
             pathfinder,
             vnav,
             lifestream,
+            conditions,
+            movementConfig,
             logger,
-            target.Id,
-            movementConfig.SprintOnAetheryteApproach);
+            target.Id);
 
         _ = manager.Manage(AppendPath(chain, chainName, walkTo, treatAsActivity));
     }
@@ -550,15 +552,16 @@ public class ActivityNavigation
             WhileMoving = () =>
             {
                 Vector3 dest = destination();
-                // Surveys mount even from the base-camp ring; FATE/CE skip mount for short crystal walks.
-                bool inBaseCamp = treatAsActivity && zones.GetZone().IsInBasecamp();
+                IZone zone = zones.GetZone();
+                // Surveys mount even from the base-camp ring; short crystal walks stay on foot.
                 MountWait.TryCastIfNeeded(
                     conditions,
                     objects,
                     dest,
                     movementConfig.ShouldAutoMount,
                     movementConfig.PreferredMountId,
-                    inBaseCamp);
+                    treatAsActivity && zone.IsInBasecamp(),
+                    zone);
             },
         });
 

@@ -65,6 +65,12 @@ public interface ITreasureHunter
 
     void Resume();
 
+    /// <summary>
+    ///     Resume and, when the next planned pad is far from the player, rebuild the route from
+    ///     here (nearest remaining). Used by Illegal Mode map-hunt filler after a distant FATE/CE.
+    /// </summary>
+    void ResumeNearPlayer();
+
     HuntPathfinderStep? GetCurrentStep();
 
     /// <summary>Next WalkToNode coffer from the current step (where the hunt continues).</summary>

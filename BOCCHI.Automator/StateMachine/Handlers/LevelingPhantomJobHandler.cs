@@ -124,8 +124,5 @@ public class LevelingPhantomJobHandler
         job.Id != SupportJobId.PhantomFreelancer;
 
     private static bool ShouldSwitchFrom(SupportJob job) =>
-        !IsLevelableByXp(job) || IsMaxed(job);
-
-    private static bool IsMaxed(SupportJob job) =>
-        job.Data.LevelMax > 0 && job.Level >= job.Data.LevelMax;
+        !IsLevelableByXp(job) || (job.Data.LevelMax > 0 && job.Level >= job.Data.LevelMax);
 }

@@ -1,4 +1,4 @@
-using BOCCHI.Common.Data.Zones.Graph;
+using BOCCHI.Common.Data.CriticalEncounters;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using Lumina.Data.Files;
@@ -37,24 +37,6 @@ public sealed class CriticalEncounterGeometry(
     private readonly Dictionary<uint, CriticalEncounterArea> cache = [];
 
     private ushort cachedTerritory;
-
-    public unsafe CriticalEncounterArea? TryGet(ushort dynamicEventId) =>
-        TryGet(dynamicEventId, out _);
-
-    /// <summary>Unpadded registration size from LGB, or false when it cannot be resolved.</summary>
-    public bool TryGetCombat(ushort dynamicEventId, out float radius, out ActivityAreaShape shape)
-    {
-        if (TryGet(dynamicEventId) is { Radius: > 0 } area)
-        {
-            radius = area.Radius;
-            shape = area.IsSquare ? ActivityAreaShape.Square : ActivityAreaShape.Circle;
-            return true;
-        }
-
-        radius = 0f;
-        shape = ActivityAreaShape.Circle;
-        return false;
-    }
 
     /// <param name="detail">Why lookup succeeded or failed — for <c>/bocchi debug ce</c>.</param>
     public unsafe CriticalEncounterArea? TryGet(ushort dynamicEventId, out string detail)
@@ -171,6 +153,88 @@ public sealed class CriticalEncounterGeometry(
             : $"id live={liveRangeId} excel={excelRangeId} not in {ranges.Count} MapRange(s)";
         logger.Warning("CE {Id}: {Detail}", dynamicEventId, detail);
         return null;
+    }
+
+    /// <summary>
+    ///     How far from authored staging to search for a replacement MapRange when the ID match is
+    ///     an elevated / oversized volume (Eternal Watch).
+    /// </summary>
+    private const float AlternateMapRangeSearchRadius = 80f;
+
+    /// <summary>
+    ///     Resolve the MapRange BOCCHI should wait in: prefer the event's LGB id, but when that
+    ///     volume fails sanitization (huge elevated Eternal Watch MapRange), pick a ground-sized
+    ///     MapRange near authored staging instead of the generic 40y fallback alone.
+    /// </summary>
+    public CriticalEncounterArea? TryResolveForAuthored(
+        ushort dynamicEventId,
+        Vector3 authoredStaging,
+        out string detail)
+    {
+        CriticalEncounterArea? raw = TryGet(dynamicEventId, out string rawDetail);
+        if (raw is not { Radius: > 0 } area)
+        {
+            detail = rawDetail;
+            return null;
+        }
+
+        CriticalEncounter.SanitizeRegistration(
+            authoredStaging,
+            area.Center,
+            area.Radius,
+            out _,
+            out _,
+            out bool rejected);
+
+        if (!rejected || float.IsNaN(authoredStaging.X))
+        {
+            detail = rawDetail;
+            return area;
+        }
+
+        float bestDist = float.MaxValue;
+        CriticalEncounterArea? best = null;
+        string bestLabel = "";
+        foreach ((string path, LayerCommon.InstanceObject instance, LayerCommon.MapRangeInstanceObject range) in LoadMapRanges())
+        {
+            CriticalEncounterArea candidate = Build(instance, range);
+            CriticalEncounter.SanitizeRegistration(
+                authoredStaging,
+                candidate.Center,
+                candidate.Radius,
+                out _,
+                out _,
+                out bool altRejected);
+            if (altRejected)
+            {
+                continue;
+            }
+
+            float dist = candidate.Center.Distance2D(authoredStaging);
+            if (dist >= bestDist || dist > AlternateMapRangeSearchRadius)
+            {
+                continue;
+            }
+
+            bestDist = dist;
+            best = candidate;
+            bestLabel = $"MapRange {instance.InstanceId} at {dist:0.#}y in {path}";
+        }
+
+        if (best is { } alt)
+        {
+            detail = $"alternate {bestLabel} (rejected {rawDetail})";
+            logger.Debug(
+                "CE {Id}: rejected MapRange ({Raw}); using ground alternate centre {Center:F0} radius {Radius:F1}y",
+                dynamicEventId,
+                rawDetail,
+                alt.Center,
+                alt.Radius);
+            return alt;
+        }
+
+        detail = $"rejected {rawDetail}; no ground alternate within {AlternateMapRangeSearchRadius:0}y";
+        return area;
     }
 
     private List<(string Path, LayerCommon.InstanceObject Instance, LayerCommon.MapRangeInstanceObject Range)> LoadMapRanges()

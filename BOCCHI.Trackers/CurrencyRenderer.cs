@@ -4,7 +4,6 @@ using BOCCHI.Common.Config;
 using BOCCHI.Common.UI;
 using BOCCHI.Currency.Services;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using Ocelot.Windows;
 
 namespace BOCCHI.Currency;
@@ -13,7 +12,6 @@ public class CurrencyRenderer
 (
     ICurrencyTracker tracker,
     UIConfig uiConfig,
-    IUIService ui,
     ITranslator<MainWindow> translator
 ) : IDynamicRenderer
 {
@@ -23,15 +21,9 @@ public class CurrencyRenderer
 
     public void Render()
     {
-        if (!uiConfig.ShowCurrencyTracker)
-        {
-            return;
-        }
-
         TimeSpan graphBucketSize = DeltaRateTracker.DefaultGraphBucket;
 
         TrackerRateRenderer.RenderPerHour(
-            ui,
             translator.T(".trackers.currency.gold_per_hour"),
             tracker.GoldPerHour,
             tracker.GetGoldHistory(graphBucketSize),
@@ -40,7 +32,6 @@ public class CurrencyRenderer
         );
 
         TrackerRateRenderer.RenderPerHour(
-            ui,
             translator.T(".trackers.currency.silver_per_hour"),
             tracker.SilverPerHour,
             tracker.GetSilverHistory(graphBucketSize),

@@ -23,6 +23,9 @@
     "on": "On",
     "off": "Off",
     "idle": "Idle",
+    "whats_running": "Running",
+    "shopping_paused": "Shopping",
+    "click_section": "Open this section",
     "emergency_stop_tooltip": "Emergency Stop — stop all automation, movement, and buffs",
     "emergency_stop_done": "[BOCCHI] Emergency Stop",
     "goal": "Goal",
@@ -96,6 +99,7 @@
     "mode_on": "[BOCCHI] Completionist Mode On",
     "mode_off": "[BOCCHI] Completionist Mode Off",
     "mode_off_left_zone": "[BOCCHI] Left Occult Crescent — Completionist Mode Off",
+    "about": "About",
     "description": "Uses Illegal Mode for missing FATE and CE notes. Survey points: click to flag; Ctrl+click to travel. Forked Tower notes are tracking only.",
     "legend": "Check = unlocked · × = still needed · star = phantom job maxed",
     "notes_header": "Field notes",
@@ -169,8 +173,10 @@
       "yield_reasons": {
         "none": "—",
         "pots": "Magic Pot",
+        "treasure_sight": "Treasure Sight",
         "treasure_hunt": "Treasure Hunt",
-        "crystal_buffs": "Crystal buffs"
+        "crystal_buffs": "Crystal buffs",
+        "shopping": "Shopping"
       },
       "configure_mobs": "Pick enemies in /bocchi config → Mob Farmer.",
       "off_left_zone": "[BOCCHI] Left Occult Crescent — Mob Farmer Off"

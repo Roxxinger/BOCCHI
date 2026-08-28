@@ -23,6 +23,9 @@
     "on": "켜짐",
     "off": "꺼짐",
     "idle": "대기",
+    "whats_running": "실행 중",
+    "shopping_paused": "쇼핑 중",
+    "click_section": "이 섹션 열기",
     "emergency_stop_tooltip": "긴급 정지 — 모든 자동화·이동·버프를 멈춥니다",
     "emergency_stop_done": "[BOCCHI] 긴급 정지",
     "goal": "목표",
@@ -96,6 +99,7 @@
     "mode_on": "[BOCCHI] 컬렉터 모드 켜짐",
     "mode_off": "[BOCCHI] 컬렉터 모드 꺼짐",
     "mode_off_left_zone": "[BOCCHI] 초승달 섬를 떠나 컬렉터 모드 꺼짐",
+    "about": "설명",
     "description": "아직 없는 노트의 돌발/비상 조우는 자동 모드로 진행합니다. 조사 지점: 클릭하면 깃발, Ctrl+클릭하면 이동합니다. 포크 타워 노트는 확인용입니다.",
     "legend": "체크 = 보유 · × = 미보유 · 별 = 서포트 잡 최대",
     "notes_header": "필드 노트",
@@ -169,8 +173,10 @@
       "yield_reasons": {
         "none": "—",
         "pots": "마법 항아리",
+        "treasure_sight": "마기 보물 탐색",
         "treasure_hunt": "보물 찾기",
-        "crystal_buffs": "크리스탈 버프"
+        "crystal_buffs": "크리스탈 버프",
+        "shopping": "쇼핑"
       },
       "configure_mobs": "적은 /bocchi config → 몹 사냥에서 고르세요.",
       "off_left_zone": "[BOCCHI] 초승달 섬를 떠나 몹 사냥 꺼짐"

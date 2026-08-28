@@ -1,4 +1,4 @@
-﻿using BOCCHI.Common.Data.Aethernet;
+using BOCCHI.Common.Data.Aethernet;
 namespace BOCCHI.Common.Data.Zones.Graph.Factory.Steps;
 
 public class AddTeleportsStep : IGraphBuildStep
@@ -17,7 +17,12 @@ public class AddTeleportsStep : IGraphBuildStep
         {
             Type = NodeType.BaseCampAetheryte,
             Position = zone.GetAetherytePosition(),
-            Metadata = new TeleportNodeMetadata { AetheryteId = mainAetheryte.Id, Destination = mainAetheryte.GetInteractPosition() }
+            Metadata = new TeleportNodeMetadata
+            {
+                AetheryteId = mainAetheryte.Id,
+                Destination = mainAetheryte.GetInteractPosition(),
+                DeadRadius = mainAetheryte.DeadRadius,
+            }
         };
 
         List<Node> aethernet = new();
@@ -27,7 +32,12 @@ public class AddTeleportsStep : IGraphBuildStep
             {
                 Type = NodeType.AethernetShard,
                 Position = shard.Position,
-                Metadata = new TeleportNodeMetadata { AetheryteId = shard.Id, Destination = shard.Destination }
+                Metadata = new TeleportNodeMetadata
+                {
+                    AetheryteId = shard.Id,
+                    Destination = shard.Destination,
+                    DeadRadius = shard.DeadRadius,
+                }
             });
         }
 

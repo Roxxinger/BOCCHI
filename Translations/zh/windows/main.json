@@ -23,6 +23,9 @@
     "on": "开",
     "off": "关",
     "idle": "待机",
+    "whats_running": "运行中",
+    "shopping_paused": "购物中",
+    "click_section": "打开此分区",
     "emergency_stop_tooltip": "紧急停止 —— 停止全部自动化、移动与增益",
     "emergency_stop_done": "[BOCCHI] 紧急停止",
     "goal": "目标",
@@ -96,6 +99,7 @@
     "mode_on": "[BOCCHI] 收集者模式已开启",
     "mode_off": "[BOCCHI] 收集者模式已关闭",
     "mode_off_left_zone": "[BOCCHI] 已离开神典石 — 收集者模式已关闭",
+    "about": "说明",
     "description": "仍缺少的危命／紧急遭遇笔记用违规模式完成。调查点：单击插旗；Ctrl+单击前往。分叉塔记录仅供查看。",
     "legend": "勾选 = 已拥有 · × = 仍需 · 星 = 辅助职业满级",
     "notes_header": "勘察记录",
@@ -169,8 +173,10 @@
       "yield_reasons": {
         "none": "—",
         "pots": "魔法罐",
+        "treasure_sight": "魔寻宝",
         "treasure_hunt": "寻宝",
-        "crystal_buffs": "水晶增益"
+        "crystal_buffs": "水晶增益",
+        "shopping": "购物"
       },
       "configure_mobs": "请在 /bocchi config → 刷怪 中选择敌人。",
       "off_left_zone": "[BOCCHI] 已离开神典石 — 刷怪已关闭"

@@ -1,3 +1,4 @@
+using BOCCHI.Common.Data.Aethernet;
 using System.Numerics;
 
 namespace BOCCHI.Common.Data.Zones.Graph;
@@ -43,6 +44,9 @@ public class TeleportNodeMetadata : INodeMetadata
     public uint AetheryteId { get; set; } = 0;
 
     public Vector3 Destination { get; set; } = Vector3.Zero;
+
+    /// <summary>Solid body / Lifestream radius for this pad (matches <c>AethernetData.DeadRadius</c>).</summary>
+    public float DeadRadius { get; set; } = AethernetData.DefaultDeadRadius;
 }
 
 public enum TreasureType

@@ -7,14 +7,44 @@ namespace BOCCHI.Automator.Services.PotTreasure;
 
 /// <summary>
 ///     Narrows the authored pot chest spots using compass hints.
-///     A hint is read <b>from wherever the player is standing</b>, so it is a bearing constraint
-///     relative to the player — not a fixed property of the chest. The previous design binned spots
-///     by their direction from the pot FATE centre, which only agrees with the hint while you are
-///     standing at the centre; after the first move it sent the hunt to the octant on the wrong side
-///     of the map and it ping-ponged.
+///     A hint is a bearing relative to where Magical Elixir was used (or where the log landed),
+///     not wherever the player is when the farm finally reads it. Applying a mid-walk or next-pad
+///     position as the origin used to send the hunt to the wrong octant and ping-pong.
 /// </summary>
 public static class PotTreasureFilter
 {
+    /// <summary>How close a revealed coffer must be to count as on a pot pad.</summary>
+    public const float RevealSpotTolerance = 22f;
+
+    /// <summary>True when a revealed treasure sits on a pot pad, not a nearer hunt coffer.</summary>
+    public static bool IsOnAuthoredPotSpot(
+        Vector3 position,
+        IEnumerable<Vector3> potSpots,
+        IEnumerable<Vector3> foreignSpots,
+        float tolerance = RevealSpotTolerance)
+    {
+        float nearestPot = float.MaxValue;
+        foreach (Vector3 spot in potSpots)
+        {
+            nearestPot = MathF.Min(nearestPot, position.Distance2D(spot));
+        }
+
+        if (nearestPot > tolerance)
+        {
+            return false;
+        }
+
+        foreach (Vector3 known in foreignSpots)
+        {
+            if (position.Distance2D(known) < nearestPot)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>Octants are 45° wide, so a hint constrains the bearing to ±22.5°.</summary>
     public const float OctantTolerance = 22.5f;
 

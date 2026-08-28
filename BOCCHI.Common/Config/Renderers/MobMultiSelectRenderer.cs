@@ -34,7 +34,7 @@ public class MobMultiSelectRenderer(IZoneProvider zones, IDataManager data, IUIS
             prop.SetValue(target, mobs);
         }
 
-        prop.Label(owner, translator);
+        BocchiUi.SectionTitle(prop.Label(owner, translator));
         prop.Tooltip(owner, translator);
 
         ZoneId currentZone = zones.GetZone().ZoneId;
@@ -52,26 +52,34 @@ public class MobMultiSelectRenderer(IZoneProvider zones, IDataManager data, IUIS
         string southHornKey = fieldKey.Replace(".label", ".zone_south_horn", StringComparison.Ordinal);
         string northHornKey = fieldKey.Replace(".label", ".zone_north_horn", StringComparison.Ordinal);
 
-        bool changed = MobPickerHelper.Draw(
-            mobs,
-            data,
-            ui,
-            ref search,
-            ref zoneFilterIndex,
-            translator.T(searchHintKey),
-            translator.T(selectedKey),
-            translator.T(zoneFilterKey),
-            translator.T(allZonesKey),
-            translator.T(southHornKey),
-            translator.T(northHornKey),
-            "##config_mob_picker_list",
-            220f);
-
-        if (changed)
+        BocchiUi.PushFieldStyle();
+        try
         {
-            prop.SetValue(target, mobs);
-        }
+            bool changed = MobPickerHelper.Draw(
+                mobs,
+                data,
+                ui,
+                ref search,
+                ref zoneFilterIndex,
+                translator.T(searchHintKey),
+                translator.T(selectedKey),
+                translator.T(zoneFilterKey),
+                translator.T(allZonesKey),
+                translator.T(southHornKey),
+                translator.T(northHornKey),
+                "##config_mob_picker_list",
+                220f);
 
-        return changed;
+            if (changed)
+            {
+                prop.SetValue(target, mobs);
+            }
+
+            return changed;
+        }
+        finally
+        {
+            BocchiUi.PopFieldStyle();
+        }
     }
 }

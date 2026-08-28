@@ -1,9 +1,7 @@
 using BOCCHI.Common.Data.Zones;
 using Dalamud.Plugin.Services;
 using Lumina.Excel;
-using Ocelot.Graphics;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using Ocelot.Windows;
 using XIVFate = Lumina.Excel.Sheets.Fate;
 
@@ -19,9 +17,7 @@ public static class PotTimerUi
         IPotCycleTracker potCycle,
         IZoneProvider zones,
         IDataManager data,
-        IUIService ui,
-        ITranslator<MainWindow> translator,
-        IBrandingService? branding = null)
+        ITranslator<MainWindow> translator)
     {
         ExcelSheet<XIVFate> sheet = data.GetExcelSheet<XIVFate>();
         IReadOnlyList<PotCycleSnapshot> known = potCycle.KnownCycles;
@@ -33,14 +29,13 @@ public static class PotTimerUi
                 return;
             }
 
-            Color grey = branding?.DalamudGrey ?? new Color(0.7f, 0.7f, 0.7f, 1f);
-            ui.Text(translator.T(".pot_timer.unknown"), grey);
+            BocchiUi.MutedText(translator.T(".pot_timer.unknown"));
             return;
         }
 
         foreach (PotCycleSnapshot snap in known)
         {
-            DrawOne(snap, sheet, ui, translator);
+            DrawOne(snap, sheet, translator);
         }
     }
 
@@ -81,14 +76,13 @@ public static class PotTimerUi
     private static void DrawOne(
         PotCycleSnapshot snap,
         ExcelSheet<XIVFate> sheet,
-        IUIService ui,
         ITranslator<MainWindow> translator)
     {
         string zone = ZoneLabel(snap.TerritoryTypeId, translator);
 
         if (snap.CurrentActivePotFateId != 0)
         {
-            ui.LabelledValue(
+            BocchiUi.LabelledValue(
                 $"{zone} — {translator.T(".pot_timer.active")}",
                 FateName(sheet, snap.CurrentActivePotFateId));
             return;
@@ -99,7 +93,7 @@ public static class PotTimerUi
             return;
         }
 
-        ui.LabelledValue(
+        BocchiUi.LabelledValue(
             $"{zone} — {translator.T(".pot_timer.next")}",
             $"{FateName(sheet, snap.PredictedNextPotFateId)} · {FormatClock(Remaining(snap))}");
     }

@@ -17,8 +17,10 @@ namespace BOCCHI.MobFarmer.Data
     {
         None = 0,
         Pots,
+        TreasureSight,
         TreasureHunt,
         CrystalBuffs,
+        Shopping,
     }
 }
 

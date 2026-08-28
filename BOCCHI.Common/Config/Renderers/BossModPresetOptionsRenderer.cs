@@ -1,5 +1,6 @@
 using System.Reflection;
 using BOCCHI.Common.Config.Fields;
+using BOCCHI.Common.UI;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
 using Ocelot.Config.Renderers;
@@ -32,105 +33,117 @@ public sealed class BossModPresetOptionsRenderer(ICombatRotationSession session,
         string fieldKey = $"config.automator.fields.{prop.Name.ToSnakeCase()}";
         bool changed = false;
         bool recreate = false;
+        bool updateAuto = config.UpdateBossModPresetsAutomatically;
 
-        using (ImRaii.Disabled(!session.BossModPresetsAvailable))
+        BocchiUi.PushFieldStyle();
+        try
         {
-            if (ImGui.Button(translator.T($"{fieldKey}.button")))
+            // Auto-update already rewrites presets when settings change — button is redundant then.
+            using (ImRaii.Disabled(!session.BossModPresetsAvailable || updateAuto))
             {
-                recreate = true;
-            }
-        }
-
-        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-        {
-            Ocelot.Extensions.PropertyInfoExtensions.DrawWrappedTooltip(translator.T($"{fieldKey}.button_tooltip"));
-        }
-
-        var updateAuto = config.UpdateBossModPresetsAutomatically;
-        if (ImGui.Checkbox(prop.Label(owner, translator), ref updateAuto))
-        {
-            config.UpdateBossModPresetsAutomatically = updateAuto;
-            changed = true;
-        }
-
-        prop.Tooltip(owner, translator);
-
-        bool byRole = config.BossModMaxDistanceByRole;
-        if (Checkbox(translator, "max_distance_by_role", ref byRole))
-        {
-            config.BossModMaxDistanceByRole = byRole;
-            changed = true;
-        }
-
-        ImGui.PushItemWidth(ImGui.GetFontSize() * 12f);
-        if (!byRole)
-        {
-            float distance = config.BossModMaxDistance;
-            if (Slider(translator, "max_distance", ref distance))
-            {
-                config.BossModMaxDistance = distance;
-                changed = true;
-            }
-        }
-        else
-        {
-            bool onHitbox = config.BossModMeleeOnHitbox;
-            if (Checkbox(translator, "melee_on_hitbox", ref onHitbox))
-            {
-                config.BossModMeleeOnHitbox = onHitbox;
-                changed = true;
-            }
-
-            using (ImRaii.Disabled(onHitbox))
-            {
-                float melee = config.BossModMaxDistanceMelee;
-                if (Slider(translator, "max_distance_melee", ref melee))
+                if (ImGui.Button(translator.T($"{fieldKey}.button")))
                 {
-                    config.BossModMaxDistanceMelee = melee;
+                    recreate = true;
+                }
+            }
+
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            {
+                string buttonTip = updateAuto
+                    ? translator.T($"{fieldKey}.button_tooltip_auto_on")
+                    : translator.T($"{fieldKey}.button_tooltip");
+                Ocelot.Extensions.PropertyInfoExtensions.DrawWrappedTooltip(buttonTip);
+            }
+
+            if (ImGui.Checkbox(prop.Label(owner, translator), ref updateAuto))
+            {
+                config.UpdateBossModPresetsAutomatically = updateAuto;
+                changed = true;
+            }
+
+            prop.Tooltip(owner, translator);
+
+            bool byRole = config.BossModMaxDistanceByRole;
+            if (Checkbox(translator, "max_distance_by_role", ref byRole))
+            {
+                config.BossModMaxDistanceByRole = byRole;
+                changed = true;
+            }
+
+            ImGui.PushItemWidth(ImGui.GetFontSize() * 12f);
+            if (!byRole)
+            {
+                float distance = config.BossModMaxDistance;
+                if (Slider(translator, "max_distance", ref distance))
+                {
+                    config.BossModMaxDistance = distance;
+                    changed = true;
+                }
+            }
+            else
+            {
+                bool onHitbox = config.BossModMeleeOnHitbox;
+                if (Checkbox(translator, "melee_on_hitbox", ref onHitbox))
+                {
+                    config.BossModMeleeOnHitbox = onHitbox;
+                    changed = true;
+                }
+
+                using (ImRaii.Disabled(onHitbox))
+                {
+                    float melee = config.BossModMaxDistanceMelee;
+                    if (Slider(translator, "max_distance_melee", ref melee))
+                    {
+                        config.BossModMaxDistanceMelee = melee;
+                        changed = true;
+                    }
+                }
+
+                float ranged = config.BossModMaxDistanceRanged;
+                if (Slider(translator, "max_distance_ranged", ref ranged))
+                {
+                    config.BossModMaxDistanceRanged = ranged;
                     changed = true;
                 }
             }
 
-            float ranged = config.BossModMaxDistanceRanged;
-            if (Slider(translator, "max_distance_ranged", ref ranged))
+            var overdodge = config.BossModOverdodge;
+            if (Combo(translator, "overdodge", ref overdodge))
             {
-                config.BossModMaxDistanceRanged = ranged;
+                config.BossModOverdodge = overdodge;
                 changed = true;
             }
-        }
 
-        var overdodge = config.BossModOverdodge;
-        if (Combo(translator, "overdodge", ref overdodge))
-        {
-            config.BossModOverdodge = overdodge;
-            changed = true;
-        }
-
-        var delay = config.BossModMovementDelay;
-        if (Combo(translator, "delay", ref delay))
-        {
-            config.BossModMovementDelay = delay;
-            changed = true;
-        }
-
-        bool separateDodge = config.BossModSeparateDodgeDelay;
-        if (Checkbox(translator, "separate_dodge_delay", ref separateDodge))
-        {
-            config.BossModSeparateDodgeDelay = separateDodge;
-            changed = true;
-        }
-
-        if (separateDodge)
-        {
-            var dodgeDelay = config.BossModDodgeMovementDelay;
-            if (Combo(translator, "dodge_delay", ref dodgeDelay))
+            var delay = config.BossModMovementDelay;
+            if (Combo(translator, "delay", ref delay))
             {
-                config.BossModDodgeMovementDelay = dodgeDelay;
+                config.BossModMovementDelay = delay;
                 changed = true;
             }
-        }
 
-        ImGui.PopItemWidth();
+            bool separateDodge = config.BossModSeparateDodgeDelay;
+            if (Checkbox(translator, "separate_dodge_delay", ref separateDodge))
+            {
+                config.BossModSeparateDodgeDelay = separateDodge;
+                changed = true;
+            }
+
+            if (separateDodge)
+            {
+                var dodgeDelay = config.BossModDodgeMovementDelay;
+                if (Combo(translator, "dodge_delay", ref dodgeDelay))
+                {
+                    config.BossModDodgeMovementDelay = dodgeDelay;
+                    changed = true;
+                }
+            }
+
+            ImGui.PopItemWidth();
+        }
+        finally
+        {
+            BocchiUi.PopFieldStyle();
+        }
 
         session.MovementSettings = BossModMovement.From(config, player.IsMelee(), player.GetClassJob()?.RowId);
         if (recreate)

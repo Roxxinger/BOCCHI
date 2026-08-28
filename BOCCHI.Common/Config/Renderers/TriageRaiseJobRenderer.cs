@@ -1,4 +1,5 @@
 using BOCCHI.Common.Config.Fields;
+using BOCCHI.Common.UI;
 using Dalamud.Bindings.ImGui;
 using Ocelot.Config.Renderers;
 using Ocelot.Extensions;
@@ -22,40 +23,33 @@ public sealed class TriageRaiseJobRenderer : IFieldRenderer<TriageRaiseJobAttrib
                 + $"{prop.DeclaringType?.Name}.{prop.Name} is {prop.PropertyType.Name}.");
         }
 
-        if (target is not AutomatorConfig config || !config.EnableTriageMode)
-        {
-            return false;
-        }
-
-        var value = config.PreferredTriageRaiseJob;
+        var value = (TriageRaiseJobPreference)(prop.GetValue(target) ?? TriageRaiseJobPreference.PhantomChemist);
         bool changed = false;
-        string tooltip = translator.T(prop.GetFieldTooltipKey(owner));
 
-        ImGui.Indent();
-        if (ImGui.RadioButton(translator.T(ChemistKey), value == TriageRaiseJobPreference.PhantomChemist))
+        BocchiUi.PushFieldStyle();
+        try
         {
-            value = TriageRaiseJobPreference.PhantomChemist;
-            changed = true;
-        }
+            if (ImGui.RadioButton(translator.T(ChemistKey), value == TriageRaiseJobPreference.PhantomChemist))
+            {
+                value = TriageRaiseJobPreference.PhantomChemist;
+                changed = true;
+            }
 
-        if (ImGui.IsItemHovered())
+            prop.Tooltip(owner, translator);
+
+            ImGui.SameLine();
+            if (ImGui.RadioButton(translator.T(WhiteMageKey), value == TriageRaiseJobPreference.PhantomWhiteMage))
+            {
+                value = TriageRaiseJobPreference.PhantomWhiteMage;
+                changed = true;
+            }
+
+            prop.Tooltip(owner, translator);
+        }
+        finally
         {
-            Ocelot.Extensions.PropertyInfoExtensions.DrawWrappedTooltip(tooltip);
+            BocchiUi.PopFieldStyle();
         }
-
-        ImGui.SameLine();
-        if (ImGui.RadioButton(translator.T(WhiteMageKey), value == TriageRaiseJobPreference.PhantomWhiteMage))
-        {
-            value = TriageRaiseJobPreference.PhantomWhiteMage;
-            changed = true;
-        }
-
-        if (ImGui.IsItemHovered())
-        {
-            Ocelot.Extensions.PropertyInfoExtensions.DrawWrappedTooltip(tooltip);
-        }
-
-        ImGui.Unindent();
 
         if (changed)
         {

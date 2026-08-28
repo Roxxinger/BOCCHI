@@ -42,9 +42,7 @@ public static class HuntDistances
     ///     Carrot Hunt: trust empty farther out when another live carrot proves the region
     ///     has streamed. Treasure Hunt uses <c>EmptyPadTrustDistance</c> instead.
     /// </summary>
-    public const float EmptyPadRegionTrustRadius = LayoutProximityRadius;
-
-    public const float EmptyPadRegionTrustRadiusSq = EmptyPadRegionTrustRadius * EmptyPadRegionTrustRadius;
+    public const float EmptyPadRegionTrustRadiusSq = LayoutProximityRadius * LayoutProximityRadius;
 
     /// <summary>Require a short empty confirmation so object-table flicker does not false-skip.</summary>
     public static readonly TimeSpan EmptyPadConfirmDelay = TimeSpan.FromMilliseconds(600);

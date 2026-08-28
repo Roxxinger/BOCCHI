@@ -14,7 +14,6 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin.Services;
 using Lumina.Excel.Sheets;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using Ocelot.Windows;
 using System.Numerics;
 
@@ -31,16 +30,9 @@ public class CompletionistRenderer
     IZoneProvider zones,
     IDataManager data,
     IGameGui gameGui,
-    IUIService ui,
     ITranslator<MainWindow> translator
 ) : IDynamicRenderer
 {
-    private static readonly Vector4 OwnedColor = new(0.3f, 0.85f, 0.39f, 1f);
-
-    private static readonly Vector4 MaxedColor = new(1f, 0.84f, 0.2f, 1f);
-
-    private static readonly Vector4 NeededColor = new(0.75f, 0.75f, 0.75f, 1f);
-
     public MainWindowSection Section => MainWindowSection.Completionist;
 
     public void Render()
@@ -54,42 +46,25 @@ public class CompletionistRenderer
 
         if (automator.IsCompletionist)
         {
-            ImGui.SameLine();
-            if (ImGui.Button(translator.T(".automation.automator.refresh_pathfinding")))
-            {
-                automator.RefreshPathfinding();
-            }
-
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.SetTooltip(translator.T(".automation.automator.refresh_pathfinding_tooltip"));
-            }
+            AutomatorPathControls.Draw(automator, zones, translator, showRefresh: true);
         }
-
-        if (zones.GetZone().IsOccultCrescentZone())
+        else
         {
-            ImGui.SameLine();
-            if (ImGui.Button(translator.T(".automation.automator.rebuild_path_map")))
-            {
-                automator.RebuildPathMap();
-            }
-
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.SetTooltip(translator.T(".automation.automator.rebuild_path_map_tooltip"));
-            }
+            AutomatorPathControls.Draw(automator, zones, translator, showRefresh: false);
         }
 
         ImGui.Spacing();
-        ImGui.TextWrapped(translator.T(".completionist.description"));
-        ImGui.Spacing();
-        ZoneGraphStatusUi.Draw(zones.GetZone(), ui, translator);
-        ImGui.TextDisabled(translator.T(".completionist.legend"));
 
-        if (automator.IsCompletionist && memory.TryRemember<GoalMemory>(out GoalMemory goalMemory))
+        // About stays collapsed by default so the checklist is the first thing you see.
+        ImGui.PushStyleColor(ImGuiCol.Text, BocchiUi.Header);
+        bool aboutOpen = ImGui.CollapsingHeader(
+            translator.T(".completionist.about"),
+            ImGuiTreeNodeFlags.None);
+        ImGui.PopStyleColor();
+        if (aboutOpen)
         {
-            ImGui.Spacing();
-            ui.LabelledValue(translator.T(".status.goal"), GoalFormatHelper.Describe(goalMemory.Goal, translator));
+            BocchiUi.DrawIntro(translator.T(".completionist.description"));
+            BocchiUi.MutedText(translator.T(".completionist.legend"));
         }
 
         ImGui.Spacing();
@@ -101,9 +76,9 @@ public class CompletionistRenderer
 
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
-            ImGui.TextDisabled(translator.T(".completionist.notes_header"));
+            BocchiUi.SectionTitle(translator.T(".completionist.notes_header"));
             ImGui.TableNextColumn();
-            ImGui.TextDisabled(translator.T(".completionist.jobs_header"));
+            BocchiUi.SectionTitle(translator.T(".completionist.jobs_header"));
 
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
@@ -124,7 +99,7 @@ public class CompletionistRenderer
         IReadOnlyList<FieldNoteTargets.Entry> entries = FieldNoteTargets.ChecklistFor(zone.ZoneId);
         if (entries.Count == 0)
         {
-            ImGui.TextWrapped(translator.T(".completionist.outside_zone"));
+            BocchiUi.MutedWrapped(translator.T(".completionist.outside_zone"));
             return;
         }
 
@@ -134,7 +109,7 @@ public class CompletionistRenderer
             string source = translator.T($".completionist.sources.{entry.SourceKey}");
             string noteName = ResolveEntryName(entry);
             string label = $"{source} — {noteName}";
-            Vector4 color = owned ? OwnedColor : NeededColor;
+            Vector4 color = owned ? BocchiUi.Good : BocchiUi.Muted;
             FontAwesomeIcon icon = owned ? FontAwesomeIcon.Check : FontAwesomeIcon.Times;
 
             if (entry.CanFlag)
@@ -248,15 +223,15 @@ public class CompletionistRenderer
 
             if (maxed)
             {
-                DrawIconRow(FontAwesomeIcon.Star, MaxedColor, name);
+                DrawIconRow(FontAwesomeIcon.Star, BocchiUi.Header, name);
             }
             else if (unlocked)
             {
-                DrawIconRow(FontAwesomeIcon.Check, OwnedColor, name);
+                DrawIconRow(FontAwesomeIcon.Check, BocchiUi.Good, name);
             }
             else
             {
-                DrawIconRow(FontAwesomeIcon.Times, NeededColor, name);
+                DrawIconRow(FontAwesomeIcon.Times, BocchiUi.Muted, name);
             }
         }
     }

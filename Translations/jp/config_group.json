@@ -8,6 +8,9 @@
   "treasure": {
     "label": "トレジャーハンター"
   },
+  "shopping": {
+    "label": "買い物"
+  },
   "ux": {
     "label": "UI"
   },

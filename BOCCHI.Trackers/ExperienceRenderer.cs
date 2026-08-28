@@ -4,9 +4,8 @@ using BOCCHI.Common.Config;
 using BOCCHI.Common.Data.SupportJobs;
 using BOCCHI.Common.UI;
 using BOCCHI.Experience.Services;
+using Dalamud.Bindings.ImGui;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
-using Ocelot.Services.UI.ComposableStrings;
 using Ocelot.Windows;
 
 namespace BOCCHI.Experience;
@@ -16,8 +15,6 @@ public class ExperienceRenderer
     IExperienceTracker tracker,
     UIConfig uiConfig,
     ISupportJobFactory supportJobs,
-    IBrandingService branding,
-    IUIService ui,
     ITranslator<MainWindow> translator
 ) : IDynamicRenderer
 {
@@ -27,21 +24,16 @@ public class ExperienceRenderer
     {
         if (!supportJobs.TryGetCurrent(out SupportJob current))
         {
-            ui.Text(translator.T(".trackers.experience.no_job"), branding.DalamudRed);
+            ImGui.TextColored(BocchiUi.Bad, translator.T(".trackers.experience.no_job"));
             return;
         }
 
-        ComposableGroup left = ui.Compose()
-            .Text(translator.T(".trackers.experience.current_job"), branding.DalamudYellow)
-            .Text(current.Data.Name.ToString());
+        BocchiUi.LabelledValue(translator.T(".trackers.experience.current_job"), current.Data.Name.ToString());
 
-        ComposableGroup right = ui.Compose()
-            .Text(string.Format(translator.T(".trackers.experience.level"), current.Level, current.TotalExperience));
-
-        ui.Render(left, right);
+        BocchiUi.MutedText(
+            string.Format(translator.T(".trackers.experience.level"), current.Level, current.TotalExperience));
 
         TrackerRateRenderer.RenderPerHour(
-            ui,
             translator.T(".trackers.experience.per_hour"),
             tracker.ExperiencePerHour,
             tracker.GetExperienceHistory(DeltaRateTracker.DefaultGraphBucket),

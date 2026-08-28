@@ -1,3 +1,4 @@
+using BOCCHI.Common.Config;
 using BOCCHI.Common.Data.Fates;
 using BOCCHI.Common.Data.Zones;
 using Dalamud.Plugin;
@@ -12,9 +13,10 @@ using System.Text.Json.Serialization;
 
 namespace BOCCHI.Common.Services;
 
-/// <summary>Sync pot-cycle anchors with the BOCCHI Worker (off-thread HTTP).</summary>
+/// <summary>Sync pot-cycle anchors with the BOCCHI Worker when shared maps are enabled.</summary>
 public sealed class PotCycleSyncService
 (
+    TreasureConfig config,
     IZoneProvider zones,
     IPotCycleTracker potCycles,
     IFateRepository fates,
@@ -84,6 +86,12 @@ public sealed class PotCycleSyncService
     public void Update()
     {
         ApplyCompletedWork();
+
+        if (!config.EnableSharedMaps)
+        {
+            ResetSession();
+            return;
+        }
 
         IZone zone = zones.GetZone();
         if (!zone.IsOccultCrescentZone())

@@ -47,6 +47,11 @@ public class IllegalModeTreasureFillerService
             return;
         }
 
+        if (automator.SuspendedForShopping)
+        {
+            return;
+        }
+
         if (!automatorConfig.EnableAutomaticTreasureHuntDuringIllegalMode)
         {
             ResetSession();
@@ -199,6 +204,8 @@ public class IllegalModeTreasureFillerService
             survey.WaitingForSurveyResult = false;
             survey.SurveyWaitDeadlineUtc = DateTime.MinValue;
             survey.PendingMapHunt = true;
+            // Hunt owns travel/Return — drop any Automator Return already queued after the FATE/CE.
+            memory.Forget<ReturningStateMemory>();
             LogSightUnavailableOnce();
             logger.Debug("Illegal Mode: latched map treasure hunt without Treasure Sight ({Reason})", reason);
             return;
@@ -226,6 +233,7 @@ public class IllegalModeTreasureFillerService
             survey.WaitingForSurveyResult = false;
             survey.SurveyWaitDeadlineUtc = DateTime.MinValue;
             survey.PendingMapHunt = true;
+            memory.Forget<ReturningStateMemory>();
             LogSightUnavailableOnce();
             logger.Debug("Illegal Mode: Treasure Sight became unavailable — falling back to map hunt");
         }
@@ -360,6 +368,7 @@ public class IllegalModeTreasureFillerService
         else
         {
             automator.SetSuspendedForTreasure(false);
+            memory.Forget<ReturningStateMemory>();
         }
 
         if (!hunter.IsVnavReady)
@@ -398,7 +407,17 @@ public class IllegalModeTreasureFillerService
 
         if (hunter.Paused)
         {
-            hunter.Resume();
+            // Map hunt (no Sight): after a distant FATE/CE, continue from nearby remaining pads
+            // instead of walking back to where the route was paused.
+            if (HasTreasureSight)
+            {
+                hunter.Resume();
+            }
+            else
+            {
+                hunter.ResumeNearPlayer();
+            }
+
             hadFillerHunt = true;
             logger.Debug("Illegal Mode: resumed automatic treasure hunt");
         }

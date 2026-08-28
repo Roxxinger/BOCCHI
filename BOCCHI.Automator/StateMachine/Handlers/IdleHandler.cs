@@ -6,6 +6,7 @@ using BOCCHI.Common.Data.StateMemory;
 using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Services;
 using BOCCHI.Common.Services.Paths;
+using BOCCHI.Treasure.Services;
 using Dalamud.Plugin.Services;
 using Ocelot.Chain;
 using Ocelot.Extensions;
@@ -31,7 +32,8 @@ public class IdleHandler(
     MovementConfig movement,
     AutoRotationController autoRotation,
     IUIService ui,
-    ITranslator<MainWindow> translator
+    ITranslator<MainWindow> translator,
+    ITreasureHunter hunter
 ) : ScoreStateHandler<AutomatorState, StatePriority>(AutomatorState.Idle)
 {
     public override StatePriority GetScore() => StatePriority.Lowest;
@@ -41,7 +43,8 @@ public class IdleHandler(
         base.Enter();
         PathStepSoftStop.Cancel(chains);
         // Survey / World PathTo use ActivityGoto chains — don't kill them on idle handoff.
-        if (!IsNavigationInterrupted())
+        // Map-hunt filler keeps Automator Idle so FATE/CE can interrupt; don't Stop() its vnav.
+        if (!IsNavigationInterrupted() && !IsIllegalModeMapHuntFillerActive())
         {
             StopMovement();
         }
@@ -71,6 +74,12 @@ public class IdleHandler(
     public override void Handle()
     {
         if (IsNavigationInterrupted())
+        {
+            return;
+        }
+
+        // Stay Idle (so a FATE/CE can still score) but do not park / Stop() while the hunt leaves camp.
+        if (IsIllegalModeMapHuntFillerActive())
         {
             return;
         }
@@ -154,6 +163,13 @@ public class IdleHandler(
 
     private bool IsNavigationInterrupted() =>
         memory.TryRemember<NavigationInterruptedMemory>(out NavigationInterruptedMemory _);
+
+    /// <summary>
+    ///     Map hunts (no Treasure Sight) keep Automator awake. While that hunt is moving, Idle must
+    ///     not Stop() vnav — that re-queues the same camp→coffer path every tick.
+    /// </summary>
+    private bool IsIllegalModeMapHuntFillerActive() =>
+        hunter.ManagedByIllegalModeFiller && hunter.Running && !hunter.Paused;
 
     private static void ShuffleInPlace(List<Vector3> list)
     {

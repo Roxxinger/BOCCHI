@@ -23,6 +23,9 @@
     "on": "オン",
     "off": "オフ",
     "idle": "待機中",
+    "whats_running": "稼働中",
+    "shopping_paused": "買い物中",
+    "click_section": "このセクションを開く",
     "emergency_stop_tooltip": "緊急停止 — すべての自動化・移動・バフを止めます",
     "emergency_stop_done": "[BOCCHI] 緊急停止",
     "goal": "目標",
@@ -96,6 +99,7 @@
     "mode_on": "[BOCCHI] コンプリーショニストモード オン",
     "mode_off": "[BOCCHI] コンプリーショニストモード オフ",
     "mode_off_left_zone": "[BOCCHI] オカルトクレセントを離れたためコンプリーショニストモード オフ",
+    "about": "説明",
     "description": "未所持ノートの FATE / CE は不正モードで行います。調査ポイント：クリックでフラグ、Ctrl＋クリックで移動。フォークドタワーのノートは確認用です。",
     "legend": "チェック＝所持 · ×＝未所持 · 星＝サポートジョブ最大",
     "notes_header": "フィールドノート",
@@ -169,8 +173,10 @@
       "yield_reasons": {
         "none": "—",
         "pots": "マジックポット",
+        "treasure_sight": "トレジャーサイト",
         "treasure_hunt": "トレジャーハント",
-        "crystal_buffs": "クリスタルバフ"
+        "crystal_buffs": "クリスタルバフ",
+        "shopping": "買い物"
       },
       "configure_mobs": "敵は /bocchi config → モブファーム で選んでください。",
       "off_left_zone": "[BOCCHI] オカルトクレセントを離れたためモブファーム オフ"

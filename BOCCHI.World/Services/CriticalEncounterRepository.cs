@@ -96,7 +96,6 @@ public class CriticalEncounterRepository
             return;
         }
 
-        // One pass: index live events, then refresh tracked encounters from the dictionary.
         DynamicEvent[] events = oc->DynamicEventContainer.Events.ToArray();
         Dictionary<uint, DynamicEvent> live = [];
         Dictionary<CriticalEncounterId, CriticalEncounter> current = [];
@@ -124,17 +123,25 @@ public class CriticalEncounterRepository
                 criticalEncounter.Update(ev);
             }
 
-            if (geometry.TryGet(criticalEncounter.Id.Value) is not { Radius: > 0 } area)
+            if (geometry.TryResolveForAuthored(
+                    criticalEncounter.Id.Value,
+                    criticalEncounter.Position,
+                    out _) is not { Radius: > 0 } area)
             {
                 continue;
             }
 
+            ActivityData? authored = zone.GetCriticalEncounterData()
+                .FirstOrDefault(a => a.Id == criticalEncounter.Id.Value);
             ActivityAreaShape shape = NavigationConstants.ResolveCriticalEncounterShape(
                 zone,
                 criticalEncounter.Id.Value,
                 area.IsSquare);
-            criticalEncounter.ApplyCombatGeometry(area.Radius, shape, area.Center);
-            zone.ApplyCriticalEncounterCombat(criticalEncounter.Id.Value, area.Radius, shape);
+            criticalEncounter.ApplyCombatGeometry(area.Radius, shape, area.Center, authored?.CombatRadius);
+            zone.ApplyCriticalEncounterCombat(
+                criticalEncounter.Id.Value,
+                criticalEncounter.UnpaddedCombatRadius,
+                shape);
         }
 
         BuildSnapshots(tracked);

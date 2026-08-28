@@ -1,5 +1,6 @@
 using BOCCHI.Common.Config.Fields;
 using BOCCHI.Common.Services;
+using BOCCHI.Common.UI;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
@@ -39,34 +40,42 @@ public sealed class Mp3SoundSelectRenderer(IMp3SoundPlayer sounds) : IFieldRende
         string label = prop.Label(owner, translator);
         bool changed = false;
 
-        ImGui.SetNextItemWidth(ImGui.CalcTextSize("Game OverXXXX").X + ImGui.GetStyle().FramePadding.X * 4f);
-        if (ImGui.BeginCombo(label, current))
+        BocchiUi.PushFieldStyle();
+        try
         {
-            foreach (string name in options)
+            ImGui.SetNextItemWidth(ImGui.CalcTextSize("Game OverXXXX").X + ImGui.GetStyle().FramePadding.X * 4f);
+            if (ImGui.BeginCombo(label, current))
             {
-                bool selected = string.Equals(name, current, StringComparison.OrdinalIgnoreCase);
-                if (ImGui.Selectable(name, selected))
+                foreach (string name in options)
                 {
-                    current = name;
-                    changed = true;
-                    sounds.Play(name);
+                    bool selected = string.Equals(name, current, StringComparison.OrdinalIgnoreCase);
+                    if (ImGui.Selectable(name, selected))
+                    {
+                        current = name;
+                        changed = true;
+                        sounds.Play(name);
+                    }
+
+                    if (selected)
+                    {
+                        ImGui.SetItemDefaultFocus();
+                    }
                 }
 
-                if (selected)
-                {
-                    ImGui.SetItemDefaultFocus();
-                }
+                ImGui.EndCombo();
             }
 
-            ImGui.EndCombo();
+            prop.Tooltip(owner, translator);
+
+            ImGui.SameLine();
+            if (FolderButton(translator, prop, owner))
+            {
+                sounds.OpenSoundsFolder();
+            }
         }
-
-        prop.Tooltip(owner, translator);
-
-        ImGui.SameLine();
-        if (FolderButton(translator, prop, owner))
+        finally
         {
-            sounds.OpenSoundsFolder();
+            BocchiUi.PopFieldStyle();
         }
 
         if (changed)

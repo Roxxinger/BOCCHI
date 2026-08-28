@@ -1,6 +1,7 @@
 using BOCCHI.Automator.Data;
 using BOCCHI.Automator.Services;
 using BOCCHI.Buff.Services;
+using BOCCHI.Common;
 using BOCCHI.Common.Config;
 using BOCCHI.Common.Data.StateMemory;
 using BOCCHI.Common.Data.Zones;
@@ -15,9 +16,7 @@ using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin.Services;
 using Ocelot.Extensions;
-using Ocelot.Graphics;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using Ocelot.Windows;
 
 namespace BOCCHI.UI;
@@ -35,8 +34,6 @@ public class OperationalStatusBar
     IPotCycleTracker potCycle,
     IZoneProvider zones,
     IDataManager data,
-    IBrandingService branding,
-    IUIService ui,
     ITranslator<MainWindow> translator
 )
 {
@@ -51,6 +48,11 @@ public class OperationalStatusBar
     private IPotsTreasureMode PotsTreasure => potsTreasure ??= potsTreasureFactory();
 
     private IMobFarmer Farmer => farmer ??= farmerFactory();
+
+    /// <summary>Set when a status chip is clicked; MainRenderer opens that section once.</summary>
+    public MainWindowSection? ExpandSectionRequest { get; private set; }
+
+    public void ConsumeExpandRequest() => ExpandSectionRequest = null;
 
     public bool IllegalModeActive => Automator.Enabled;
 
@@ -68,40 +70,62 @@ public class OperationalStatusBar
 
     public void Render()
     {
-        ImGui.Separator();
+        bool shopping =
+            Automator.SuspendedForShopping
+            || (Farmer.Running && Farmer.Suspended && Farmer.YieldReason == FarmerYieldReason.Shopping);
 
         bool anyMode = IllegalModeActive || CompletionistActive || PotsTreasureActive || MobFarmerActive
-                       || StandaloneTreasureHuntActive || CarrotHuntActive;
+                       || StandaloneTreasureHuntActive || CarrotHuntActive || shopping;
+
+        List<string> runningParts = [];
+
         if (!anyMode)
         {
-            ui.Text(translator.T(".status.idle"), branding.DalamudGrey);
+            BocchiUi.DrawStatusChip(translator.T(".status.idle"), BocchiUi.StatusChipKind.Muted);
         }
         else
         {
             bool first = true;
-            void Chip(string label, string? detail)
+            void Chip(
+                string label,
+                string? detail,
+                MainWindowSection section,
+                BocchiUi.StatusChipKind kind = BocchiUi.StatusChipKind.Ok)
             {
                 if (!first)
                 {
-                    ImGui.SameLine();
+                    ImGui.SameLine(0, 6);
                 }
 
                 first = false;
-                DrawActiveChip(label, detail);
+                string text = string.IsNullOrEmpty(detail) ? label : $"{label}: {detail}";
+                if (BocchiUi.DrawStatusChip(text, kind))
+                {
+                    ExpandSectionRequest = section;
+                }
+
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip(translator.T(".status.click_section"));
+                }
+
+                runningParts.Add(string.IsNullOrEmpty(detail) ? label : $"{label} → {detail}");
             }
 
             if (IllegalModeActive)
             {
                 Chip(
                     translator.T(".status.automator"),
-                    Automator.CurrentState is { } state ? FormatAutomatorState(state) : null);
+                    Automator.CurrentState is { } state ? FormatAutomatorState(state) : translator.T(".status.on"),
+                    MainWindowSection.Automation);
             }
 
             if (CompletionistActive)
             {
                 Chip(
                     translator.T(".status.completionist"),
-                    Automator.CurrentState is { } state ? FormatAutomatorState(state) : null);
+                    Automator.CurrentState is { } state ? FormatAutomatorState(state) : translator.T(".status.on"),
+                    MainWindowSection.Completionist);
             }
 
             if (PotsTreasureActive)
@@ -119,44 +143,67 @@ public class OperationalStatusBar
                     detail = $"{phase} · {TreasureHuntStatusUi.FormatProgress(hunter, translator)}";
                 }
 
-                Chip(translator.T(".status.pots_treasure"), detail);
+                Chip(
+                    translator.T(".status.pots_treasure"),
+                    detail,
+                    MainWindowSection.PotsTreasure,
+                    PotsTreasure.Paused ? BocchiUi.StatusChipKind.Warn : BocchiUi.StatusChipKind.Ok);
             }
 
             if (MobFarmerActive)
             {
                 string detail = Farmer.Suspended
                     ? translator.T($".automation.mob_farmer.yield_reasons.{Farmer.YieldReason.ToString().ToSnakeCase()}")
-                    : FormatFarmerPhase(Farmer.Phase);
+                    : translator.T($".status.farmer_phases.{Farmer.Phase.ToString().ToSnakeCase()}");
                 if (!Farmer.Suspended && Farmer.CurrentSpotName is { } spot)
                 {
                     detail = $"{detail} · {spot}";
                 }
 
-                Chip(translator.T(".status.mob_farmer"), detail);
+                Chip(
+                    translator.T(".status.mob_farmer"),
+                    detail,
+                    MainWindowSection.MobFarmer,
+                    Farmer.Suspended ? BocchiUi.StatusChipKind.Warn : BocchiUi.StatusChipKind.Ok);
             }
 
             if (StandaloneTreasureHuntActive)
             {
                 Chip(
                     translator.T(".status.treasure_hunt"),
-                    TreasureHuntStatusUi.FormatProgress(hunter, translator));
+                    TreasureHuntStatusUi.FormatProgress(hunter, translator),
+                    MainWindowSection.Treasure);
             }
 
             if (CarrotHuntActive)
             {
                 Chip(
                     translator.T(".status.carrot_hunt"),
-                    translator.T($".treasure.carrot_hunt_phases.{carrotHunter.Phase.ToString().ToSnakeCase()}"));
+                    translator.T($".treasure.carrot_hunt_phases.{carrotHunter.Phase.ToString().ToSnakeCase()}"),
+                    MainWindowSection.Treasure);
+            }
+
+            if (shopping)
+            {
+                if (!first)
+                {
+                    ImGui.SameLine(0, 6);
+                }
+
+                first = false;
+                BocchiUi.DrawStatusChip(translator.T(".status.shopping_paused"), BocchiUi.StatusChipKind.Warn);
+                runningParts.Add(translator.T(".status.shopping_paused"));
             }
         }
 
         string? potChip = PotTimerUi.FormatCompact(potCycle, data, translator);
         if (potChip != null)
         {
-            ImGui.SameLine(0f, 16f);
-            ui.Text(potChip, branding.DalamudGrey);
+            ImGui.SameLine(0f, 10f);
+            BocchiUi.DrawStatusChip(potChip, BocchiUi.StatusChipKind.Muted);
         }
 
+        // Ready path-map stays quiet — only show while loading/building.
         if (ZoneGraphStatusUi.TryFormat(
                 zones.GetZone(),
                 translator,
@@ -165,36 +212,41 @@ public class OperationalStatusBar
                 out bool pathMapBusy)
             && pathMapBusy)
         {
-            ImGui.SameLine(0f, 16f);
-            ui.Text($"{translator.T(".automation.automator.path_map")}: {pathMapValue}", branding.DalamudYellow);
+            ImGui.SameLine(0f, 10f);
+            BocchiUi.DrawStatusChip(
+                $"{translator.T(".automation.automator.path_map")}: {pathMapValue}",
+                BocchiUi.StatusChipKind.Warn);
         }
 
-        // Own row — not a mode chip; knowledge-crystal buff apply/stop.
         if (uiConfig.ShowBuffSection)
         {
+            ImGui.SameLine(0f, 10f);
             DrawBuffAction();
         }
 
-        // Goal / pot chests while Illegal Mode, Completionist, or Pots phase drives the automator.
+        if (runningParts.Count > 0)
+        {
+            ImGui.Spacing();
+            BocchiUi.MutedText($"{translator.T(".status.whats_running")}: {string.Join(" · ", runningParts)}");
+        }
+
         bool showGoalRows = IllegalModeActive
                             || CompletionistActive
                             || (PotsTreasureActive && PotsTreasure.Phase == PotsTreasurePhase.DoingPots);
         if (showGoalRows)
         {
+            ImGui.Spacing();
             if (memory.TryRemember<GoalMemory>(out GoalMemory goalMemory))
             {
-                ui.LabelledValue(translator.T(".status.goal"), GoalFormatHelper.Describe(goalMemory.Goal, translator));
+                BocchiUi.MutedText($"{translator.T(".status.goal")}: {GoalFormatHelper.Describe(goalMemory.Goal, translator)}");
             }
 
             if (memory.TryRemember<PotChestFarmMemory>(out PotChestFarmMemory potFarm))
             {
-                ui.LabelledValue(
-                    translator.T(".status.chests"),
-                    $"{potFarm.RemainingChests}/{potFarm.TotalChests} (Fate {potFarm.FateId.Value})");
+                BocchiUi.MutedText(
+                    $"{translator.T(".status.chests")}: {potFarm.RemainingChests}/{potFarm.TotalChests} (Fate {potFarm.FateId.Value})");
             }
         }
-
-        ImGui.Separator();
     }
 
     private void DrawBuffAction()
@@ -207,7 +259,6 @@ public class OperationalStatusBar
 
         using (ImRaii.Disabled(!canStart && !running))
         {
-            // Flask reads as buffs/potions; Magic looked like a random pill next to status chips.
             using (ImRaii.PushFont(UiBuilder.IconFont))
             {
                 ImGui.AlignTextToFramePadding();
@@ -247,24 +298,10 @@ public class OperationalStatusBar
         if (running)
         {
             ImGui.SameLine(0f, 8f);
-            ui.Text(translator.T(".buffs.applying"), branding.DalamudGrey);
-        }
-    }
-
-    private void DrawActiveChip(string label, string? detail)
-    {
-        ui.Text($"{label}: {translator.T(".status.on")}", Color.Green);
-
-        if (!string.IsNullOrEmpty(detail))
-        {
-            ImGui.SameLine();
-            ImGui.TextUnformatted($"({detail})");
+            BocchiUi.DrawStatusChip(translator.T(".buffs.applying"), BocchiUi.StatusChipKind.Warn);
         }
     }
 
     private string FormatAutomatorState(AutomatorState state) =>
         translator.T($".status.automator_states.{state.ToString().ToSnakeCase()}");
-
-    private string FormatFarmerPhase(FarmerPhase phase) =>
-        translator.T($".status.farmer_phases.{phase.ToString().ToSnakeCase()}");
 }

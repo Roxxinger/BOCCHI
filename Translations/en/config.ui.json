@@ -1,6 +1,6 @@
 {
   "label": "UI",
-  "tooltip": "Language, what shows in the main window, reward icons, and tracker graphs.",
+  "tooltip": "Language, main window sections, reward icons, and tracker graphs.",
   "sections": {
     "general": "General",
     "trackers": "Trackers",
@@ -10,72 +10,57 @@
   },
   "fields": {
     "language": {
-      "label": "Language",
-      "tooltip": "Language used for BOCCHI’s windows and messages."
+      "label": "Language"
     },
     "open_on_occult_crescent_entry": {
-      "label": "Open BOCCHI on Occult Crescent entry",
-      "tooltip": "Automatically open the BOCCHI main window when entering South or North Horn."
+      "label": "Open BOCCHI on Occult Crescent entry"
     },
     "show_experience_tracker": {
-      "label": "Show experience tracker",
-      "tooltip": "Show the experience panel in the main window."
+      "label": "Show experience tracker"
     },
     "show_experience_tracker_graph": {
-      "label": "Show experience graph",
-      "tooltip": "Show the experience graph under the tracker."
+      "label": "Show experience graph"
     },
     "show_currency_tracker": {
-      "label": "Show currency tracker",
-      "tooltip": "Show the currency panel in the main window."
+      "label": "Show currency tracker"
     },
     "show_currency_tracker_graph": {
-      "label": "Show currency graph",
-      "tooltip": "Show the currency graph under the tracker."
+      "label": "Show currency graph"
     },
     "show_world_section": {
-      "label": "Show FATEs & CEs list",
-      "tooltip": "Show active FATEs and Critical Encounters in the main window."
+      "label": "Show FATEs & CEs list"
     },
     "show_demiatma_drops": {
       "label": "Show demiatma drops (South Horn)",
-      "tooltip": "South Horn only. Show demiatma icons on FATEs and CEs. Green border = you still need it; red = you already have 3."
+      "tooltip": "Green border: you still need it.\nRed border: you already have 3."
     },
     "show_note_drops": {
-      "label": "Show field note drops",
-      "tooltip": "Show field note icons on FATEs and CEs that drop them (South Horn and North Horn)."
+      "label": "Show field note drops"
     },
     "show_soul_shard_drops": {
-      "label": "Show soul shard drops (South Horn)",
-      "tooltip": "South Horn only. Show phantom job soul shard icons on CEs that drop them."
+      "label": "Show soul shard drops (South Horn)"
     },
     "show_buff_section": {
-      "label": "Show Apply Buffs button",
-      "tooltip": "Show the Apply Buffs / Stop Buffs control under the status chips in the main window."
+      "label": "Show Apply Buffs button"
     },
     "show_automation_section": {
-      "label": "Show Illegal Mode section",
-      "tooltip": "Show Illegal Mode controls in the main window."
+      "label": "Show Illegal Mode section"
     },
     "show_completionist_section": {
-      "label": "Show Completionist section",
-      "tooltip": "Show Completionist Mode (start/stop, field-note checklist) in the main window."
+      "label": "Show Completionist section"
     },
     "show_mob_farmer_section": {
-      "label": "Show Mob Farmer section",
-      "tooltip": "Show Mob Farmer controls in the main window."
+      "label": "Show Mob Farmer section"
     },
     "show_pots_treasure_section": {
-      "label": "Show Pots & Treasure section",
-      "tooltip": "Show Pots & Treasure controls in the main window."
+      "label": "Show Pots & Treasure section"
     },
     "show_treasure_section": {
-      "label": "Show Treasure Hunter section",
-      "tooltip": "Show Treasure Hunter and Carrot Hunt status and controls in the main window."
+      "label": "Show Treasure Hunter section"
     },
     "show_bocchi_chat_prefix": {
       "label": "Show BOCCHI chat messages",
-      "tooltip": "Print plugin messages to chat with a [BOCCHI] tag. Turn off to hide them (startup MOTD still shows)."
+      "tooltip": "On: print plugin messages to chat with a [BOCCHI] tag.\nOff: hide them (startup MOTD still shows)."
     }
   }
 }

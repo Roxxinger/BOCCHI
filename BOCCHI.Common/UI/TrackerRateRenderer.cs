@@ -1,12 +1,10 @@
 using Dalamud.Bindings.ImGui;
-using Ocelot.Services.UI;
 
 namespace BOCCHI.Common.UI;
 
 public static class TrackerRateRenderer
 {
     public static void RenderPerHour(
-        IUIService ui,
         string label,
         double perHour,
         float[] history,
@@ -15,7 +13,7 @@ public static class TrackerRateRenderer
         float plotHeight = 30f
     )
     {
-        ui.LabelledValue(label, perHour.ToString("N0"));
+        BocchiUi.LabelledValue(label, perHour.ToString("N0"));
 
         if (showGraph)
         {
@@ -36,6 +34,7 @@ public static class TrackerRateRenderer
             max = 1f;
         }
 
+        ImGui.PushStyleColor(ImGuiCol.PlotLines, BocchiUi.Header);
         ImGui.PlotLines(
             id,
             history.AsSpan(),
@@ -45,5 +44,6 @@ public static class TrackerRateRenderer
             max,
             new(ImGui.GetContentRegionAvail().X, height)
         );
+        ImGui.PopStyleColor();
     }
 }

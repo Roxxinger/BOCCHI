@@ -138,6 +138,14 @@ public sealed class NinjaHideAssist(
         }
     }
 
+    /// <summary>
+    ///     Drop Hide prep before coffer / carrot interact so the treasure job and gearset are restored.
+    /// </summary>
+    public void EndStealthForInteract()
+    {
+        RestorePreviousGearsetIfNeeded();
+    }
+
     /// <summary>Restore phantom job remembered before Occult Sprint Thief swap.</summary>
     public void RestorePreviousSupportJobIfNeeded()
     {

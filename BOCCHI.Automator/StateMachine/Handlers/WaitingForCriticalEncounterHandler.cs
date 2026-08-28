@@ -105,7 +105,7 @@ public class WaitingForCriticalEncounterHandler
         base.Enter();
         // Forget GoalPathStepMemory before cancel (avoid soft-pause).
         memory.Forget<GoalPathStepMemory>();
-        StopNavigation();
+        PathStepSoftStop.Stop(manager, pathfinder, vnav);
 
         if (TryGetGoalEncounter(out CriticalEncounter ce))
         {
@@ -185,6 +185,4 @@ public class WaitingForCriticalEncounterHandler
         ce = encounter;
         return true;
     }
-
-    private void StopNavigation() => PathStepSoftStop.Stop(manager, pathfinder, vnav);
 }

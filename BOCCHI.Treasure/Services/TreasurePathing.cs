@@ -10,8 +10,14 @@ public static class TreasurePathing
     /// <summary>Horizontal slack when snapping an authored pad onto the navmesh.</summary>
     private const float SnapExtentXZ = 8f;
 
-    /// <summary>Vertical search — authored / map Y is often tens of yalms off the floor.</summary>
-    private const float SnapExtentY = 200f;
+    /// <summary>
+    ///     Vertical search around the authored / live Y. Wide enough for map Y being a bit off;
+    ///     tight enough that an island pad cannot snap to the ground 50y below (#201 / #176).
+    /// </summary>
+    private const float SnapExtentY = 30f;
+
+    /// <summary>Reject a snap that changed floors — stacked geometry (island over hamlet).</summary>
+    private const float MaxSnapDeltaY = 25f;
 
     /// <summary>Rewrite Y ≈ -500 reveal altitudes. Do not snap authored pads to the player's Y.</summary>
     public static Vector3 PathablePosition(Vector3 position, float playerY)
@@ -47,21 +53,27 @@ public static class TreasurePathing
             return true;
         }
 
-        Vector3 atPlayerAltitude = pathable with { Y = playerY };
-        if (TrySnap(vnav, atPlayerAltitude, out snapped) && IsNearSeed(atPlayerAltitude, snapped))
+        // No polygon near the authored altitude. Same-floor only — using the player's Y while they
+        // stand under an island would snap the pad 50y down and loop (#201).
+        if (MathF.Abs(pathable.Y - playerY) <= MaxSnapDeltaY)
         {
-            pathable = snapped;
-            return true;
+            Vector3 atPlayerAltitude = pathable with { Y = playerY };
+            if (TrySnap(vnav, atPlayerAltitude, out snapped) && IsNearSeed(atPlayerAltitude, snapped))
+            {
+                pathable = snapped;
+                return true;
+            }
         }
 
         return false;
     }
 
     /// <summary>
-    ///     Nearest-mesh can land on a cliff or island tens of yalms away. That is not this coffer.
+    ///     Nearest-mesh can land on a cliff or the floor under an island. That is not this coffer.
     /// </summary>
     private static bool IsNearSeed(Vector3 seed, Vector3 snapped) =>
-        seed.Distance2D(snapped) <= SnapExtentXZ * 1.5f;
+        seed.Distance2D(snapped) <= SnapExtentXZ * 1.5f
+        && MathF.Abs(seed.Y - snapped.Y) <= MaxSnapDeltaY;
 
     private static bool TrySnap(IVNavmeshIpc vnav, Vector3 seed, out Vector3 snapped)
     {
@@ -71,9 +83,15 @@ public static class TreasurePathing
             return false;
         }
 
-        snapped = vnav.TryFindPointOnFloor(onMesh, SnapExtentXZ, out Vector3 floored)
-            ? floored
-            : onMesh;
+        // Floor snap can drop through a hole onto the storey below; keep the mesh point then.
+        if (vnav.TryFindPointOnFloor(onMesh, SnapExtentXZ, out Vector3 floored)
+            && IsNearSeed(seed, floored))
+        {
+            snapped = floored;
+            return true;
+        }
+
+        snapped = onMesh;
         return true;
     }
 }

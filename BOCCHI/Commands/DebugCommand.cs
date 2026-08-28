@@ -5,8 +5,10 @@ using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Lumina.Excel.Sheets;
+using BOCCHI.Automator.Services.PotTreasure;
 using BOCCHI.Common;
 using BOCCHI.Common.Config;
+using BOCCHI.Common.Data.CriticalEncounters;
 using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Data.Zones.Graph;
 using BOCCHI.Common.Services;
@@ -78,10 +80,11 @@ public unsafe class DebugCommand
                 PrintCurrency();
                 break;
             case "ce":
-                PrintCriticalEncounterMeasurement();
+                PrintCriticalEncounterMeasurement(context.Args.Length > 1 ? context.Args[1] : null);
                 break;
             default:
-                chat.PrintError("Usage: /bocchi debug [open|close|toggle|ai-preset|pos|chests|instance|currency|ce]");
+                chat.PrintError(
+                    "Usage: /bocchi debug [open|close|toggle|ai-preset|pos|chests|instance|currency|ce [id]]");
                 break;
         }
     }
@@ -103,10 +106,11 @@ public unsafe class DebugCommand
     }
 
     /// <summary>
-    ///     Measure a Critical Encounter's real registration area against live LGB MapRange.
-    ///     Stand on the blue rim; your distance should match the LGB radius.
+    ///     Measure a CE's registration area vs what BOCCHI uses for travel and waiting.
+    ///     Stand where travel stops (or on the blue rim) and run <c>/bocchi debug ce</c> or
+    ///     <c>/bocchi debug ce 46</c> for a specific encounter.
     /// </summary>
-    private void PrintCriticalEncounterMeasurement()
+    private void PrintCriticalEncounterMeasurement(string? ceIdArg)
     {
         List<ActivityData> encounters = zones.GetZone().GetCriticalEncounterData();
         if (encounters.Count == 0)
@@ -115,49 +119,169 @@ public unsafe class DebugCommand
             return;
         }
 
+        if (!TryResolveDebugCriticalEncounter(encounters, ceIdArg, out ActivityData authored))
+        {
+            return;
+        }
+
         Vector3 me = player.Position;
-        ActivityData nearest = encounters.MinBy(ce => Flat(me, ce.Position))!;
-
-        float dx = MathF.Abs(me.X - nearest.Position.X);
-        float dz = MathF.Abs(me.Z - nearest.Position.Z);
-        float circle = Flat(me, nearest.Position);
-        float square = MathF.Max(dx, dz);
-        bool haveLgb = geometry.TryGetCombat((ushort)nearest.Id, out float lgbRadius, out ActivityAreaShape lgbShape);
+        CriticalEncounterArea? lgbMaybe = geometry.TryResolveForAuthored(
+            (ushort)authored.Id,
+            authored.Position,
+            out string lgbDetail);
+        bool haveLgb = lgbMaybe is { Radius: > 0 };
+        CriticalEncounterArea lgbArea = haveLgb ? lgbMaybe!.Value : default;
         ActivityAreaShape shape = haveLgb
-            ? NavigationConstants.ResolveCriticalEncounterShape(
-                nearest,
-                lgbShape == ActivityAreaShape.Square)
-            : nearest.AreaShape;
-        float measured = shape == ActivityAreaShape.Square ? square : circle;
-        float compare = haveLgb ? lgbRadius : 0f;
+            ? NavigationConstants.ResolveCriticalEncounterShape(authored, lgbArea.IsSquare)
+            : authored.AreaShape;
+
+        CriticalEncounter.SanitizeRegistration(
+            authored.Position,
+            haveLgb ? lgbArea.Center : Vector3.Zero,
+            haveLgb ? lgbArea.Radius : 0f,
+            out Vector3 waitCenter,
+            out float combatRadius,
+            out bool sanitized,
+            authored.CombatRadius);
+
+        float padded = combatRadius > 0f
+            ? NavigationConstants.CriticalEncounterPaddedRadius(combatRadius, shape)
+            : 0f;
+        float red = padded > 0f ? NavigationConstants.CriticalEncounterRedRadius(padded, shape) : 0f;
+        float waitBoundary = red > 0f
+            ? MathF.Max(NavigationConstants.EventArrivalRadius, red - NavigationConstants.CriticalEncounterWaitInset)
+            : 0f;
+
+        float distStaging = Flat(me, authored.Position);
+        float distWait = red > 0f ? Flat(me, waitCenter) : distStaging;
+        float stagingWaitSkew = haveLgb ? Flat(authored.Position, waitCenter) : 0f;
+        bool insideWait = red > 0f
+                          && NavigationConstants.IsInsideCriticalEncounterWaitArea(
+                              waitCenter, red, shape, me);
+        bool insideReg = red > 0f
+                         && NavigationConstants.IsInsideCriticalEncounterRegistrationArea(
+                             waitCenter, red, shape, me);
+
+        Vector3 pathTarget = red > 0f
+            ? NavigationApproach.GetCriticalEncounterApproachPosition(
+                waitCenter, red, shape, authored.StandRadius ?? 0f)
+            : authored.Position;
 
         BocchiChat.Print(
             chat,
             uiConfig,
             string.Format(
                 CultureInfo.InvariantCulture,
-                "CE {0} ({1}) centre <{2:0.#}, {3:0.#}>  LGB {4}",
-                nearest.Id,
-                shape,
-                nearest.Position.X,
-                nearest.Position.Z,
-                haveLgb ? $"{lgbRadius:0.#}y" : "unresolved"));
+                "CE {0} ({1}) — stand here when reporting travel/wait issues",
+                authored.Id,
+                shape));
         BocchiChat.Print(
             chat,
             uiConfig,
             string.Format(
                 CultureInfo.InvariantCulture,
-                "  you are {0:0.#}y out (circle {1:0.#}y / square half-extent {2:0.#}y)  → {3}",
-                measured,
-                circle,
-                square,
-                !haveLgb
-                    ? "LGB unresolved"
-                    : measured > compare
-                        ? "OUTSIDE the LGB area"
-                        : "inside the LGB area"));
+                "  Authored staging <{0:0.#}, {1:0.#}> Y={2:0.#}  you are {3:0.#}y away (XZ), ΔY={4:0.#}",
+                authored.Position.X,
+                authored.Position.Z,
+                authored.Position.Y,
+                distStaging,
+                me.Y - authored.Position.Y));
+        BocchiChat.Print(
+            chat,
+            uiConfig,
+            haveLgb
+                ? string.Format(
+                    CultureInfo.InvariantCulture,
+                    "  LGB <{0:0.#}, {1:0.#}> r={2:0.#}y ({3})",
+                    lgbArea.Center.X,
+                    lgbArea.Center.Z,
+                    lgbArea.Radius,
+                    lgbDetail)
+                : "  LGB unresolved (" + lgbDetail + ")");
+        BocchiChat.Print(
+            chat,
+            uiConfig,
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "  BOCCHI wait centre <{0:0.#}, {1:0.#}>  combat {2:0.#}y  wait boundary {3:0.#}y{4}",
+                waitCenter.X,
+                waitCenter.Z,
+                red,
+                waitBoundary,
+                sanitized
+                    ? lgbDetail.StartsWith("alternate", StringComparison.Ordinal)
+                        ? " (sanitized; ground alternate MapRange)"
+                        : " (sanitized LGB)"
+                    : lgbDetail.StartsWith("alternate", StringComparison.Ordinal)
+                        ? " (ground alternate MapRange)"
+                        : ""));
+        BocchiChat.Print(
+            chat,
+            uiConfig,
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "  You are {0:0.#}y from wait centre → {1}",
+                distWait,
+                red <= 0f
+                    ? "no combat radius resolved"
+                    : insideWait
+                        ? "INSIDE wait (BOCCHI should stop pathing)"
+                        : insideReg
+                            ? "inside registration rim but OUTSIDE wait inset"
+                            : "OUTSIDE registration"));
+        BocchiChat.Print(
+            chat,
+            uiConfig,
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "  Path target sample <{0:0.#}, {1:0.#}>  ({2:0.#}y from you)",
+                pathTarget.X,
+                pathTarget.Z,
+                Flat(me, pathTarget)));
+
+        if (stagingWaitSkew > 15f)
+        {
+            BocchiChat.Print(
+                chat,
+                uiConfig,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "  Note: staging and wait centre are {0:0.#}y apart — old builds path to staging while waiting uses LGB centre.",
+                    stagingWaitSkew));
+        }
 
         PrintLiveEventGeometry();
+    }
+
+    private bool TryResolveDebugCriticalEncounter(
+        List<ActivityData> encounters,
+        string? ceIdArg,
+        out ActivityData authored)
+    {
+        if (!string.IsNullOrWhiteSpace(ceIdArg))
+        {
+            if (!int.TryParse(ceIdArg, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id))
+            {
+                BocchiChat.PrintError(chat, uiConfig, "CE id must be a number (e.g. /bocchi debug ce 46).");
+                authored = encounters[0];
+                return false;
+            }
+
+            ActivityData? match = encounters.FirstOrDefault(ce => ce.Id == id);
+            if (match is null)
+            {
+                BocchiChat.PrintError(chat, uiConfig, $"No authored CE {id} in this zone.");
+                authored = encounters[0];
+                return false;
+            }
+
+            authored = match;
+            return true;
+        }
+
+        Vector3 me = player.Position;
+        authored = encounters.MinBy(ce => Flat(me, ce.Position))!;
+        return true;
     }
 
     /// <summary>
@@ -306,14 +430,11 @@ public unsafe class DebugCommand
         float hunt = huntSpots.Count == 0 ? float.MaxValue : huntSpots.Min(p => Flat(obj.Position, p));
         string distances = $"pot={pot:0.#}y hunt={hunt:0.#}y";
 
-        if (pot > 12f)
-        {
-            return $"REJECT (not on a pot spot; {distances})";
-        }
-
-        return hunt < pot
-            ? $"REJECT (nearer a hunt coffer; {distances})"
-            : $"ACCEPT as pot reveal ({distances})";
+        return PotTreasureFilter.IsOnAuthoredPotSpot(obj.Position, potSpots, huntSpots)
+            ? $"ACCEPT as pot reveal ({distances})"
+            : pot > PotTreasureFilter.RevealSpotTolerance
+                ? $"REJECT (not on a pot spot; {distances})"
+                : $"REJECT (nearer a hunt coffer; {distances})";
     }
 
     private static float Flat(Vector3 a, Vector3 b) =>

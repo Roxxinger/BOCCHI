@@ -46,7 +46,7 @@ public sealed class FarmerCombatController(
     {
         session.OverwriteBossModPresets = automatorConfig.UpdateBossModPresetsAutomatically;
         session.MovementSettings = BossModMovement.From(automatorConfig, player.IsMelee(), player.GetClassJob()?.RowId);
-        session.Tick(CurrentPhantomJobId());
+        session.Tick(supportJobs.TryGetCurrent(out SupportJob current) ? current.Id.RowId() : null);
     }
 
     public void Teardown() => session.Teardown();
@@ -144,9 +144,6 @@ public sealed class FarmerCombatController(
                 + $"job={job?.Abbreviation.ToString() ?? "?"} melee={player.IsMelee()}");
         }
     }
-
-    private uint? CurrentPhantomJobId() =>
-        supportJobs.TryGetCurrent(out SupportJob current) ? current.Id.RowId() : null;
 
     private void PrintJobProviderMissing(string name)
     {

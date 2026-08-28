@@ -1,4 +1,5 @@
 using BOCCHI.Common.Config.Fields;
+using BOCCHI.Common.UI;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin.Services;
@@ -54,55 +55,63 @@ public sealed class MountSelectRenderer(IDataManager data) : IFieldRenderer<Moun
         string preview = names[index];
         bool changed = false;
 
-        if (ImGui.BeginCombo(label, preview, ImGuiComboFlags.HeightLarge))
+        BocchiUi.PushFieldStyle();
+        try
         {
-            ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
-            if (ImGui.IsWindowAppearing())
+            if (ImGui.BeginCombo(label, preview, ImGuiComboFlags.HeightLarge))
             {
-                ImGui.SetKeyboardFocusHere();
-                // Refresh unlock state when the combo opens.
-                cache = BuildMountList(translator, prop, owner);
-                (ids, names) = cache.Value;
-                index = Array.IndexOf(ids, current);
-                if (index < 0)
+                ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+                if (ImGui.IsWindowAppearing())
                 {
-                    index = 0;
-                }
-            }
-
-            ImGui.InputTextWithHint("##mount_filter", ResolveSearchHint(translator, prop, owner), ref search, 256);
-
-            int visibleRows = Math.Clamp(names.Length, 1, 12);
-            var listSize = ImGui.GetContentRegionAvail() with { Y = ImGui.GetTextLineHeightWithSpacing() * visibleRows };
-            using (ImRaii.Child("##mount_list", listSize))
-            {
-                for (int i = 0; i < names.Length; i++)
-                {
-                    if (!string.IsNullOrEmpty(search)
-                        && !names[i].Contains(search, StringComparison.CurrentCultureIgnoreCase))
+                    ImGui.SetKeyboardFocusHere();
+                    // Refresh unlock state when the combo opens.
+                    cache = BuildMountList(translator, prop, owner);
+                    (ids, names) = cache.Value;
+                    index = Array.IndexOf(ids, current);
+                    if (index < 0)
                     {
-                        continue;
-                    }
-
-                    bool selected = i == index;
-                    if (ImGui.Selectable(names[i], selected))
-                    {
-                        current = ids[i];
-                        search = string.Empty;
-                        changed = true;
-                    }
-
-                    if (selected)
-                    {
-                        ImGui.SetItemDefaultFocus();
+                        index = 0;
                     }
                 }
+
+                ImGui.InputTextWithHint("##mount_filter", ResolveSearchHint(translator, prop, owner), ref search, 256);
+
+                int visibleRows = Math.Clamp(names.Length, 1, 12);
+                var listSize = ImGui.GetContentRegionAvail() with { Y = ImGui.GetTextLineHeightWithSpacing() * visibleRows };
+                using (ImRaii.Child("##mount_list", listSize))
+                {
+                    for (int i = 0; i < names.Length; i++)
+                    {
+                        if (!string.IsNullOrEmpty(search)
+                            && !names[i].Contains(search, StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        bool selected = i == index;
+                        if (ImGui.Selectable(names[i], selected))
+                        {
+                            current = ids[i];
+                            search = string.Empty;
+                            changed = true;
+                        }
+
+                        if (selected)
+                        {
+                            ImGui.SetItemDefaultFocus();
+                        }
+                    }
+                }
+
+                ImGui.EndCombo();
             }
 
-            ImGui.EndCombo();
+            prop.Tooltip(owner, translator);
         }
-
-        prop.Tooltip(owner, translator);
+        finally
+        {
+            BocchiUi.PopFieldStyle();
+        }
 
         if (changed)
         {

@@ -38,8 +38,9 @@ public class AutomatorConfig : IAutoConfig
     public CombatAutorotation CombatAutorotation { get; set; } = CombatAutorotation.WrathCombo;
 
     /// <summary>
-    ///     When on, rebuild BOCCHI's BossMod FATE/CE presets from stock JSON on Illegal Mode start
-    ///     and when you change job or melee/ranged. When off, existing presets are kept.
+    ///     When on, rebuild BOCCHI's BossMod FATE/CE presets from the settings below when they
+    ///     change, Illegal Mode starts, or you change job / melee / ranged. When off, existing
+    ///     presets are kept until you press Update presets.
     /// </summary>
     [BossModPresetOptions(Order = 7, Indent = 1, Section = "combat")]
     public bool UpdateBossModPresetsAutomatically { get; set; } = false;
@@ -65,31 +66,31 @@ public class AutomatorConfig : IAutoConfig
     /// <summary>
     ///     Stay mounted while a CE is preparing; dismount when it starts.
     /// </summary>
-    [Checkbox(Order = 9, Section = "travel")]
+    [Checkbox(Order = 8, Section = "travel")]
     public bool StayMountedWhileWaitingForCe { get; set; } = false;
 
     /// <summary>
     ///     After FATE/CE: Return, teleport to the nearest aetheryte for the next activity, mount,
     ///     then stop — no auto-walk.
     /// </summary>
-    [Checkbox(Order = 10, Section = "travel")]
+    [Checkbox(Order = 9, Section = "travel")]
     public bool StopAfterReturn { get; set; } = false;
 
     /// <summary>
     ///     When the current phantom job is maxed, switch to the next unlocked non-maxed job.
     /// </summary>
-    [Checkbox(Order = 11, Section = "jobs")]
+    [Checkbox(Order = 10, Section = "jobs")]
     public bool PhantomJobsLevelingMode { get; set; } = false;
 
     /// <summary>
     ///     After FATE/CE: if raisable corpses are nearby, raise with the selected phantom job then continue.
     ///     No bodies → no swap / no wait; Illegal Mode continues as usual.
     /// </summary>
-    [Checkbox(Order = 12, Section = "triage")]
+    [Checkbox(Order = 11, Section = "triage")]
     public bool EnableTriageMode { get; set; } = false;
 
     /// <summary>Which phantom job Triage Mode swaps to for raises (falls back if not unlocked).</summary>
-    [TriageRaiseJob(Order = 13, Section = "triage")]
+    [TriageRaiseJob(Order = 12, Indent = 1, Requires = nameof(EnableTriageMode), Section = "triage")]
     public TriageRaiseJobPreference PreferredTriageRaiseJob { get; set; } = TriageRaiseJobPreference.PhantomChemist;
 
     /// <summary>
@@ -100,10 +101,24 @@ public class AutomatorConfig : IAutoConfig
     [Checkbox(Order = 13, Section = "treasure")]
     public bool EnableAutomaticTreasureHuntDuringIllegalMode { get; set; } = false;
 
-    [Checkbox(Order = 14, Section = "treasure")]
+    /// <summary>
+    ///     Periodic camp Sight when auto-hunt is off. Auto-hunt casts Sight after FATE/CE instead.
+    /// </summary>
+    [Checkbox(
+        Order = 14,
+        Indent = 1,
+        DisabledWhen = nameof(EnableAutomaticTreasureHuntDuringIllegalMode),
+        Section = "treasure")]
     public bool ShouldCastTreasureSight { get; set; } = false;
 
-    [IntRange(60, 600, Order = 15, Section = "treasure")]
+    [IntRange(
+        60,
+        600,
+        Order = 15,
+        Indent = 2,
+        Requires = nameof(ShouldCastTreasureSight),
+        DisabledWhen = nameof(EnableAutomaticTreasureHuntDuringIllegalMode),
+        Section = "treasure")]
     public int TreasureSightRecastIntervalSeconds { get; set; } = 120;
 
     /// <summary>Max random idle before Return; 0 delay when Treasure Sight is latched.</summary>

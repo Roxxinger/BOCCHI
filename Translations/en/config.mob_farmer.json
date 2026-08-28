@@ -1,6 +1,6 @@
 {
   "label": "Mob Farmer",
-  "tooltip": "Choose which enemies to farm and how pulls work.",
+  "tooltip": "Which enemies to farm and how pulls work.",
   "sections": {
     "targets": "Targets",
     "spots": "Spots",
@@ -13,27 +13,25 @@
   "fields": {
     "should_handle_targeting": {
       "label": "Auto-target enemies",
-      "tooltip": "During the pull, BOCCHI picks targets for you. Once fighting starts with combat AI on, targeting is left to the AI."
+      "tooltip": "During the pull, BOCCHI picks targets. Once fighting with combat AI on, targeting is left to the AI."
     },
     "force_target_central_enemy": {
       "label": "Prefer the middle of the pack",
-      "tooltip": "When fighting without combat AI, target the enemy nearest the pack center instead of the closest one. Needs Auto-target enemies."
+      "tooltip": "Without combat AI, target the enemy nearest the pack center instead of the closest one. Needs Auto-target enemies."
     },
     "consider_special_mobs": {
       "label": "Include special enemies",
-      "tooltip": "Also pull and count special enemies that only appear in certain weather or times of day."
+      "tooltip": "Also pull special enemies that only appear in certain weather or times of day."
     },
     "count_special_mobs_toward_minimum": {
       "label": "Count specials toward minimums",
-      "tooltip": "When off, specials can still be pulled, but they do not count toward the start / fight minimums below."
+      "tooltip": "On: specials count toward the start / fight minimums below.\nOff: specials can still be pulled, but they do not count toward the start / fight minimums below."
     },
     "only_start_out_of_combat": {
-      "label": "Wait until combat fully ends",
-      "tooltip": "Do not start a new pull until you are fully out of combat."
+      "label": "Wait until combat fully ends"
     },
     "max_mob_level": {
-      "label": "Max enemy level",
-      "tooltip": "Ignore enemies above this level."
+      "label": "Max enemy level"
     },
     "max_euclidean_distance": {
       "label": "Max pull range",
@@ -65,83 +63,85 @@
     },
     "min_euclidean_distance_to_return_home": {
       "label": "Go home if farther than",
-      "tooltip": "After a fight, walk back to the current spot origin only if you are farther away than this (yalms)."
+      "tooltip": "After a fight, walk back to the spot origin only if farther than this (yalms)."
     },
     "return_to_start_in_waiting_phase": {
       "label": "Return to spot after combat",
-      "tooltip": "Walk back to the current farm spot origin when the fight ends. Origin is the spot you are on, or where you stood when you pressed Start if you have no spots."
+      "tooltip": "Walk back to the current farm spot origin when the fight ends. No spots: where you stood when you pressed Start."
     },
     "render_debug_lines": {
       "label": "Show debug lines",
-      "tooltip": "While farming: red lines to valid enemies out of combat, green lines while fighting."
+      "tooltip": "While farming: red lines to valid enemies out of combat, green while fighting."
     },
     "apply_battle_bell": {
       "label": "Use Battle Bell",
-      "tooltip": "Before each pull, switch to Geomancer, recast Battle Bell, then Sprint and switch back."
+      "tooltip": "Before each pull: Geomancer, recast Battle Bell, then Sprint and switch back."
     },
     "apply_ringing_respite": {
       "label": "Use Ringing Respite",
-      "tooltip": "With Battle Bell (or on its own): Geomancer III heals you when you take hits. Needs Geomancer III. Waits briefly if Quickstep just used the shared cooldown."
+      "tooltip": "With Battle Bell (or alone): Geomancer III heals you when hit. Needs Geomancer III. Waits briefly if Quickstep just used the shared cooldown."
     },
     "apply_quickstep": {
       "label": "Use Quickstep",
-      "tooltip": "Before each pull, switch to Phantom Dancer and cast Quickstep (90s evasion). Needs Dancer 2. Shares a short cooldown with Ringing Respite."
+      "tooltip": "Before each pull: Phantom Dancer Quickstep (90s evasion). Needs Dancer 2. Shares a short cooldown with Ringing Respite."
     },
     "apply_counterstance": {
       "label": "Use Counterstance",
-      "tooltip": "Near the end of pull buffs, switch to Phantom Monk and cast Counterstance for Fleetfooted (short damage reduction). Needs Monk 3. Applied late so the buff covers the start of the pull."
+      "tooltip": "Near the end of pull buffs: Phantom Monk Counterstance for Fleetfooted. Needs Monk 3. Applied late so it covers the start of the pull."
     },
     "maximum_battle_bell_wait_time": {
       "label": "Max wait for Bell / Respite / Stance",
-      "tooltip": "Skip Battle Bell, Ringing Respite, or Counterstance for this pull if their cooldown is longer than this (seconds). After Quickstep, Respite often needs a few seconds on the shared cooldown."
+      "tooltip": "Skip Battle Bell, Ringing Respite, or Counterstance for this pull if their cooldown is longer than this (seconds)."
     },
     "quickstep_skip_if_remaining_minutes": {
       "label": "Skip Quickstep if remaining (minutes)",
-      "tooltip": "Skip Quickstep when the 30-minute crystal Quicker Step buff still has at least this many minutes left. 0 = recast every pull (keeps the 90s evasion up)."
+      "tooltip": "Skip Quickstep when crystal Quicker Step still has at least this many minutes left. 0 = recast every pull."
     },
     "minimum_mobs_to_start_loop": {
-      "label": "Minimum enemies to start",
-      "tooltip": "How many valid enemies must be nearby before a new pull begins."
+      "label": "Minimum enemies to start"
     },
     "minimum_mobs_to_start_fight": {
       "label": "Minimum enemies before fighting",
-      "tooltip": "How many enemies to gather before stopping to fight. A spot can override this."
+      "tooltip": "How many to gather before fighting. A spot can override this."
     },
     "stacking_timeout_seconds": {
       "label": "Gather timeout (seconds)",
-      "tooltip": "Max time spent running to gather enemies before fighting starts anyway."
+      "tooltip": "Max time gathering before fighting starts anyway."
     },
     "use_ranged_pull": {
       "label": "Ranged pull (tanks)",
       "tooltip": "While gathering, tanks use Shield Lob / Tomahawk / Unmend / Lightning Shot instead of walking into melee."
     },
     "use_provoke": {
-      "label": "Use Provoke while pulling",
-      "tooltip": "Tanks also fire Provoke on the current target while Pulling enemies."
+      "label": "Use Provoke while pulling"
     },
     "use_gap_closer": {
-      "label": "Use gap closer while pulling",
-      "tooltip": "Tanks also use Intervene / Onslaught / Shadowstride / Trajectory while Pulling enemies."
+      "label": "Use gap closer while pulling"
     },
     "yield_to_pots": {
       "label": "Stop for Magic Pots",
-      "tooltip": "Pause farming for a live or soon-to-spawn Magic Pot (and pot chests if that General option is on). Timing is under Pot timing. Resumes afterward."
+      "tooltip": "On: pause for a live or soon-to-spawn Magic Pot (and pot chests if that General option is on). Timing under Pot timing.\nOff: keep farming through pots.\nResumes after the pot."
+    },
+    "cast_treasure_sight_at_farm": {
+      "label": "Cast Treasure Sight at the farm spot",
+      "tooltip": "On: cast Sight at your farm spot on the interval below, then resume pulling — no Treasure Hunt run.\nNeeds Freelancer 10+. Works with no Spots list (Start uses where you are standing).\nOff: only the full Treasure Hunt yield below can refresh counts."
+    },
+    "treasure_sight_interval_minutes": {
+      "label": "Interval (minutes)"
     },
     "yield_to_treasure_hunt": {
       "label": "Treasure Hunt on a timer",
-      "tooltip": "Every N minutes, pause farming and run Treasure Hunt if fill meets the bronze/silver % on Treasure Hunter. Needs a recent Treasure Sight reading."
+      "tooltip": "On: pause and run Treasure Hunt on the interval below if fill meets the bronze/silver % on Treasure Hunter.\nNeeds a recent Treasure Sight reading.\nOff: no timed Treasure Hunt from Mob Farmer."
     },
     "treasure_hunt_interval_minutes": {
-      "label": "Hunt every (minutes)",
-      "tooltip": "How often to consider a Treasure Hunt while farming."
+      "label": "Interval (minutes)"
     },
     "yield_to_crystal_buffs": {
       "label": "Refresh crystal buffs when low",
-      "tooltip": "Pause farming to reapply knowledge-crystal buffs when they are at or below the reapply time on the Buffs page. Needs buff automation on."
+      "tooltip": "On: pause to reapply knowledge-crystal buffs at or below the reapply time on the Buffs page.\nOff: keep farming without buff pauses.\nNeeds Automate buffs on the Buffs page."
     },
     "mobs": {
       "label": "Enemy list",
-      "tooltip": "Which enemies the farmer will pull and count.",
       "search_hint": "Search name or ID...",
       "selected": "Selected",
       "zone_filter": "Zone",

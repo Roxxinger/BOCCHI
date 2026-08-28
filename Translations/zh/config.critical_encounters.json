@@ -7,7 +7,7 @@
   "fields": {
     "disabled_critical_encounter_ids": {
       "label": "允许的紧急遭遇战",
-      "tooltip": "取消勾选某个紧急遭遇战即可跳过它。",
+      "tooltip": "开启：允许。\n关闭：跳过。",
       "empty": "当前区域没有列出紧急遭遇战。"
     }
   }

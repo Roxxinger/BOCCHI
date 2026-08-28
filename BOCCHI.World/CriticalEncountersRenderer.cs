@@ -5,9 +5,9 @@ using BOCCHI.Common.Data.EventDrops;
 using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Services;
 using BOCCHI.Common.UI;
+using Dalamud.Bindings.ImGui;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using Ocelot.Windows;
 
 namespace BOCCHI.CriticalEncounters;
@@ -20,8 +20,6 @@ public class CriticalEncountersRenderer
     ForkedTowerConfig forkedTowerConfig,
     UIConfig uiConfig,
     EventDropIconRenderer eventDrops,
-    IBrandingService branding,
-    IUIService ui,
     ITranslator<MainWindow> translator
 ) : IDynamicRenderer
 {
@@ -38,7 +36,7 @@ public class CriticalEncountersRenderer
         {
             if (!showedTower)
             {
-                ui.Text(translator.T(".world.critical_encounters.none"));
+                BocchiUi.MutedText(translator.T(".world.critical_encounters.none"));
             }
 
             return;
@@ -67,10 +65,7 @@ public class CriticalEncountersRenderer
             if (showActions)
             {
                 ActivitySnapshotRenderer.RenderCompactWithActions(
-                    ui,
                     navigation,
-                    branding.DalamudYellow,
-                    branding.DalamudGrey,
                     criticalEncounter.Name,
                     details,
                     criticalEncounter.Position,
@@ -78,12 +73,7 @@ public class CriticalEncountersRenderer
             }
             else
             {
-                ActivitySnapshotRenderer.RenderCompact(
-                    ui,
-                    branding.DalamudYellow,
-                    branding.DalamudGrey,
-                    criticalEncounter.Name,
-                    details);
+                ActivitySnapshotRenderer.RenderCompact(criticalEncounter.Name, details);
             }
 
             if (FieldNoteTargets.TryGetDropsForCriticalEncounter(
@@ -126,12 +116,16 @@ public class CriticalEncountersRenderer
             var _ => $"{tower.State} · #{tower.Id.Value}"
         };
 
-        ActivitySnapshotRenderer.RenderCompact(
-            ui,
-            branding.DalamudYellow,
-            branding.DalamudGrey,
-            tower.Name,
-            details);
+        ActivitySnapshotRenderer.RenderCompact(tower.Name, details);
+
+        BocchiUi.StatusChipKind kind = tower.State switch
+        {
+            DynamicEventState.Register or DynamicEventState.Warmup => BocchiUi.StatusChipKind.Warn,
+            _ => BocchiUi.StatusChipKind.Muted,
+        };
+        ImGui.SameLine(0f, 8f);
+        BocchiUi.DrawStatusChip(tower.State.ToString(), kind);
+
         showed = true;
     }
 

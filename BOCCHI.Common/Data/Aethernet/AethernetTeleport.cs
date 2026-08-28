@@ -33,11 +33,13 @@ public static class AethernetTeleport
         IPathfinder pathfinder,
         IVNavmeshIpc vnav,
         ILifestreamIpc lifestream,
+        ICondition conditions,
+        MovementConfig movementConfig,
         ILogger logger,
-        uint placeNameId,
-        bool sprintEnabled = true)
+        uint placeNameId)
     {
         string chainName = chain.Name;
+        bool sprintEnabled = movementConfig.SprintOnAetheryteApproach;
 
         return chain
             .UseMiddleware<LogChainMiddleware>()
@@ -73,6 +75,8 @@ public static class AethernetTeleport
                 pathfinder,
                 vnav,
                 lifestream,
+                conditions,
+                movementConfig,
                 $"{chainName}::Approach",
                 sprintEnabled))
             .Then(_ =>
@@ -207,6 +211,7 @@ public class AethernetTeleportChain
     IObjectTable objects,
     IPathfinder pathfinder,
     IVNavmeshIpc vnav,
+    ICondition conditions,
     MovementConfig movementConfig,
     ILogger<AethernetTeleportChain> logger
 ) : ChainRecipe<uint>(chains)
@@ -215,7 +220,16 @@ public class AethernetTeleportChain
 
     protected override IChain Compose(IChain chain, uint placeNameId) =>
         AethernetTeleport.BuildChain(
-            chain, Chains, zones, objects, pathfinder, vnav, lifestream, logger, placeNameId,
-            movementConfig.SprintOnAetheryteApproach);
+            chain,
+            Chains,
+            zones,
+            objects,
+            pathfinder,
+            vnav,
+            lifestream,
+            conditions,
+            movementConfig,
+            logger,
+            placeNameId);
 }
 

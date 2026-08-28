@@ -7,6 +7,7 @@ using BOCCHI.Common.Data.Goals;
 using BOCCHI.Common.Data.StateMemory;
 using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Services;
+using BOCCHI.Treasure.Services;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.ClientState.Conditions;
@@ -32,7 +33,8 @@ public class ReturningHandler
     ICriticalEncounterRepository criticalEncounters,
     IPlayer player,
     IGateService gate,
-    AutoRotationController autoRotation
+    AutoRotationController autoRotation,
+    ITreasureHunter hunter
 ) : ScoreStateHandler<AutomatorState, StatePriority>(AutomatorState.Returning)
 {
     public override StatePriority GetScore()
@@ -54,16 +56,25 @@ public class ReturningHandler
             return StatePriority.Never;
         }
 
+        // Pathfinding already dequeued Return — this latch must win even if a map hunt was
+        // just latched, or Teleport starts from the field and Lifestream fires short of camp.
+        if (memory.TryRemember<ReturningStateMemory>(out ReturningStateMemory _))
+        {
+            return StatePriority.VeryHigh;
+        }
+
+        // Map-hunt filler (no Treasure Sight): hunt owns opportunistic Return / routing while
+        // actively moving. When paused for a FATE/CE, allow Automator Return (e.g. camp for buffs).
+        if (IsIllegalModeMapHuntFillerActive())
+        {
+            return StatePriority.Never;
+        }
+
         // Pot chest farm / deferred handoff — open the reveal before Sight Return.
         if (memory.TryRemember<PotChestFarmMemory>(out PotChestFarmMemory _)
             || memory.TryRemember<PendingPotChestFarmMemory>(out PendingPotChestFarmMemory _))
         {
             return StatePriority.Never;
-        }
-
-        if (memory.TryRemember<ReturningStateMemory>(out ReturningStateMemory _))
-        {
-            return StatePriority.VeryHigh;
         }
 
         // After activity, get to camp for Treasure Sight before the next CE/FATE.
@@ -222,6 +233,18 @@ public class ReturningHandler
         }
 
         return ReturnYesNo.IsReturnConfirmation(&yesno->AtkUnitBase);
+    }
+
+    private bool IsIllegalModeMapHuntFillerActive()
+    {
+        // Paused = yielded to FATE/CE; Automator must be able to Return / buff / choose.
+        if (hunter.ManagedByIllegalModeFiller && hunter.Running && !hunter.Paused)
+        {
+            return true;
+        }
+
+        return memory.TryRemember<AutomaticTreasureSurveyMemory>(out AutomaticTreasureSurveyMemory survey)
+               && survey.PendingMapHunt;
     }
 
     private bool IsNearActiveFateGoal()

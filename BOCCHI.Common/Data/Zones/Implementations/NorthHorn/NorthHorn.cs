@@ -132,8 +132,8 @@ public class NorthHorn
         new(63, new(500f, 56f, -310f)), // Accept No Imitators
         new(62, new(-82f, 12f, 485f)), // Ahead of the Competition
         new(59, new(807f, 61f, -562f)), // Appalling Behavior
-        new(53, new(-688f, 90f, 150f)), // Cursed Resurgence
-        new(57, new(224f, 52f, -860f)), // Dark Artistry
+        new(53, new(-688f, 90f, 150f), AreaShape: ActivityAreaShape.Square), // Cursed Resurgence
+        new(57, new(224f, 52f, -860f), AreaShape: ActivityAreaShape.Square), // Dark Artistry
         new(50, new(-215f, 18f, -65f)), // Doubled Trouble
         new(58, new(-390f, 68f, 700f)), // Familiar Tactics
         new(52, new(659f, 132f, 659f), PreferredAethernetId: TheCrownOfKarnak.Id), // Forbidden Folios
@@ -258,7 +258,7 @@ public class NorthHorn
                     new(new(948.5978f, 63.594563f, -567.0099f), 99),
                     new(new(-252.1626f, 66.55432f, -879.5855f), 99),
                     new(new(546.56f, 36.120197f, 143.3104f), 99),
-                    new(new(321.198f, 59.85f, -889.8872f), 99),
+                    new(new(321.198f, 59.85f, -889.8872f), 99), // Map ~27.9, 3.7 (Sinking Sanctuary)
                     new(new(928.8978f, 74.0003f, -332.8099f), 99),
                     new(new(593f, 39.622505f, 34f), 99),
                     new(new(782.4979f, 70.34123f, -56.4099f), 99),

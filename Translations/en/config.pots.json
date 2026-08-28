@@ -12,19 +12,19 @@
     },
     "pot_spawn_lead_minutes": {
       "label": "Leave for pots this many minutes early",
-      "tooltip": "How many minutes before the next pot spawn to stop other work and head there. Independent of the FATE/CE cutoffs below."
+      "tooltip": "Minutes before the next pot spawn to stop other work and head there. Independent of the FATE/CE cutoffs below."
     },
     "fate_fallback_cutoff_minutes": {
       "label": "Do not start FATEs within (minutes of pots)",
-      "tooltip": "Do not start a normal FATE when the next pot is this many minutes away (or less). 0 = no cutoff. Not affected by leave-early."
+      "tooltip": "Do not start a normal FATE when the next pot is this many minutes away or less. 0 = no cutoff. Not affected by leave-early."
     },
     "ce_fallback_cutoff_minutes": {
       "label": "Do not start CEs within (minutes of pots)",
-      "tooltip": "Do not start a Critical Encounter when the next pot is this many minutes away (or less). 0 = no cutoff. Not affected by leave-early."
+      "tooltip": "Do not start a Critical Encounter when the next pot is this many minutes away or less. 0 = no cutoff. Not affected by leave-early."
     },
     "should_farm_reroll_pot_chests": {
       "label": "Also farm reroll pot chests",
-      "tooltip": "After a pot FATE chest run, also visit the shared reroll chest spots (while Cache Me is still up)."
+      "tooltip": "On: after a pot FATE chest run, also visit shared reroll spots while Cache Me is still up.\nOff: skip reroll spots."
     }
   }
 }

@@ -1,6 +1,6 @@
 {
   "label": "UI",
-  "tooltip": "언어, 메인 창에 보일 내용, 보상 아이콘, 추적기 그래프입니다.",
+  "tooltip": "언어, 메인 창 표시, 보상 아이콘, 추적기 그래프.",
   "sections": {
     "general": "일반",
     "trackers": "추적기",
@@ -10,72 +10,57 @@
   },
   "fields": {
     "language": {
-      "label": "언어",
-      "tooltip": "BOCCHI 창과 메시지에 쓰는 언어입니다."
+      "label": "언어"
     },
     "open_on_occult_crescent_entry": {
-      "label": "Occult Crescent 입장 시 BOCCHI 열기",
-      "tooltip": "남쪽 뿔 또는 북쪽 뿔에 입장하면 BOCCHI 메인 창을 자동으로 엽니다."
+      "label": "Occult Crescent 입장 시 BOCCHI 열기"
     },
     "show_experience_tracker": {
-      "label": "경험치 추적기 표시",
-      "tooltip": "메인 창에 경험치 패널을 표시합니다."
+      "label": "경험치 추적기 표시"
     },
     "show_experience_tracker_graph": {
-      "label": "경험치 그래프 표시",
-      "tooltip": "추적기 아래에 경험치 그래프를 표시합니다."
+      "label": "경험치 그래프 표시"
     },
     "show_currency_tracker": {
-      "label": "화폐 추적기 표시",
-      "tooltip": "메인 창에 화폐 패널을 표시합니다."
+      "label": "화폐 추적기 표시"
     },
     "show_currency_tracker_graph": {
-      "label": "화폐 그래프 표시",
-      "tooltip": "추적기 아래에 화폐 그래프를 표시합니다."
+      "label": "화폐 그래프 표시"
     },
     "show_world_section": {
-      "label": "돌발·비상 조우 목록 표시",
-      "tooltip": "메인 창에 진행 중인 돌발과 비상 조우를 표시합니다."
+      "label": "돌발·비상 조우 목록 표시"
     },
     "show_demiatma_drops": {
       "label": "데미아트마 드롭 표시 (남쪽 뿔)",
-      "tooltip": "남쪽 뿔 전용. 돌발/비상 조우에 데미아트마 아이콘을 표시합니다. 초록 테두리 = 아직 필요, 빨강 = 이미 3개."
+      "tooltip": "초록 테두리: 아직 필요함.\n빨간 테두리: 이미 3개 보유."
     },
     "show_note_drops": {
-      "label": "필드 노트 드롭 표시",
-      "tooltip": "필드 노트가 나오는 돌발/비상 조우에 아이콘을 표시합니다 (남쪽 뿔·북쪽 뿔)."
+      "label": "필드 노트 드롭 표시"
     },
     "show_soul_shard_drops": {
-      "label": "소울 샤드 드롭 표시 (남쪽 뿔)",
-      "tooltip": "남쪽 뿔 전용. 서포트 잡 소울 샤드가 나오는 비상 조우에 아이콘을 표시합니다."
+      "label": "소울 샤드 드롭 표시 (남쪽 뿔)"
     },
     "show_buff_section": {
-      "label": "버프 적용 버튼 표시",
-      "tooltip": "메인 창 상태 칩 아래에 버프 적용/중지 버튼을 표시합니다."
+      "label": "버프 적용 버튼 표시"
     },
     "show_automation_section": {
-      "label": "자동 모드 섹션 표시",
-      "tooltip": "메인 창에 자동 모드 조작을 표시합니다."
+      "label": "자동 모드 섹션 표시"
     },
     "show_completionist_section": {
-      "label": "컬렉터 섹션 표시",
-      "tooltip": "메인 창에 컬렉터 모드(시작/중지, 노트 목록)를 표시합니다."
+      "label": "컬렉터 섹션 표시"
     },
     "show_mob_farmer_section": {
-      "label": "몹 파머 섹션 표시",
-      "tooltip": "메인 창에 몹 파머 조작을 표시합니다."
+      "label": "몹 파머 섹션 표시"
     },
     "show_pots_treasure_section": {
-      "label": "항아리 & 트레저 섹션 표시",
-      "tooltip": "메인 창에 항아리 & 트레저 조작을 표시합니다."
+      "label": "항아리 & 트레저 섹션 표시"
     },
     "show_treasure_section": {
-      "label": "트레저 헌터 섹션 표시",
-      "tooltip": "메인 창에 트레저 헌터와 캐럿 헌트 상태·조작을 표시합니다."
+      "label": "트레저 헌터 섹션 표시"
     },
     "show_bocchi_chat_prefix": {
       "label": "BOCCHI 채팅 메시지 표시",
-      "tooltip": "플러그인 메시지를 [BOCCHI] 태그와 함께 채팅에 냅니다. 끄면 숨깁니다(시작 MOTD는 그대로)."
+      "tooltip": "켜짐: 플러그인 메시지를 [BOCCHI] 태그와 함께 채팅에 표시.\n꺼짐: 숨김(시작 MOTD는 표시)."
     }
   }
 }

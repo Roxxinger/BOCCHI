@@ -8,6 +8,9 @@
   "treasure": {
     "label": "寻宝"
   },
+  "shopping": {
+    "label": "购物"
+  },
   "ux": {
     "label": "界面"
   },

@@ -1,6 +1,6 @@
 {
   "label": "界面",
-  "tooltip": "语言、主窗口显示内容、奖励图标，以及统计图表。",
+  "tooltip": "语言、主窗口分区、奖励图标、统计图表。",
   "sections": {
     "general": "常规",
     "trackers": "统计",
@@ -10,72 +10,57 @@
   },
   "fields": {
     "language": {
-      "label": "语言",
-      "tooltip": "BOCCHI 窗口与消息使用的语言。"
+      "label": "语言"
     },
     "open_on_occult_crescent_entry": {
-      "label": "进入 Occult Crescent 时打开 BOCCHI",
-      "tooltip": "进入 South Horn 或 North Horn 时自动打开 BOCCHI 主窗口。"
+      "label": "进入 Occult Crescent 时打开 BOCCHI"
     },
     "show_experience_tracker": {
-      "label": "显示经验值统计",
-      "tooltip": "在主窗口中显示经验值面板。"
+      "label": "显示经验值统计"
     },
     "show_experience_tracker_graph": {
-      "label": "显示经验值图表",
-      "tooltip": "在统计面板下方显示经验值图表。"
+      "label": "显示经验值图表"
     },
     "show_currency_tracker": {
-      "label": "显示货币统计",
-      "tooltip": "在主窗口中显示货币面板。"
+      "label": "显示货币统计"
     },
     "show_currency_tracker_graph": {
-      "label": "显示货币图表",
-      "tooltip": "在统计面板下方显示货币图表。"
+      "label": "显示货币图表"
     },
     "show_world_section": {
-      "label": "显示危命任务与紧急遭遇战列表",
-      "tooltip": "在主窗口中显示进行中的危命任务与紧急遭遇战。"
+      "label": "显示危命任务与紧急遭遇战列表"
     },
     "show_demiatma_drops": {
       "label": "显示魂晶掉落（南部）",
-      "tooltip": "仅新月岛南部。在危命任务与紧急遭遇战上显示魂晶图标。绿边＝仍需要；红边＝已有 3 个。"
+      "tooltip": "绿框：仍需要。\n红框：已有 3 个。"
     },
     "show_note_drops": {
-      "label": "显示调查笔记掉落",
-      "tooltip": "在会掉落调查笔记的危命任务与紧急遭遇战上显示图标（南部与北部）。"
+      "label": "显示调查笔记掉落"
     },
     "show_soul_shard_drops": {
-      "label": "显示灵魂碎晶掉落（南部）",
-      "tooltip": "仅新月岛南部。在会掉落辅助职业灵魂碎晶的紧急遭遇战上显示图标。"
+      "label": "显示灵魂碎晶掉落（南部）"
     },
     "show_buff_section": {
-      "label": "显示附加增益按钮",
-      "tooltip": "在主窗口状态标签下方显示附加增益／停止按钮。"
+      "label": "显示附加增益按钮"
     },
     "show_automation_section": {
-      "label": "显示违规模式板块",
-      "tooltip": "在主窗口中显示违规模式控制项。"
+      "label": "显示违规模式板块"
     },
     "show_completionist_section": {
-      "label": "显示收集者板块",
-      "tooltip": "在主窗口中显示收集者模式（开始/停止与勘察记录清单）。"
+      "label": "显示收集者板块"
     },
     "show_mob_farmer_section": {
-      "label": "显示刷怪板块",
-      "tooltip": "在主窗口中显示刷怪控制项。"
+      "label": "显示刷怪板块"
     },
     "show_pots_treasure_section": {
-      "label": "显示魔法罐与寻宝板块",
-      "tooltip": "在主窗口中显示魔法罐与寻宝控制项。"
+      "label": "显示魔法罐与寻宝板块"
     },
     "show_treasure_section": {
-      "label": "显示寻宝板块",
-      "tooltip": "在主窗口中显示寻宝与胡萝卜狩猎的状态与控制项。"
+      "label": "显示寻宝板块"
     },
     "show_bocchi_chat_prefix": {
       "label": "显示 BOCCHI 聊天消息",
-      "tooltip": "在聊天中以 [BOCCHI] 标签打印插件消息。关闭可隐藏（启动时的 MOTD 仍会显示）。"
+      "tooltip": "开启：在聊天中显示带 [BOCCHI] 标签的插件消息。\n关闭：隐藏（启动 MOTD 仍显示）。"
     }
   }
 }

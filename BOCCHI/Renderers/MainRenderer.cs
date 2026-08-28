@@ -1,13 +1,14 @@
 using BOCCHI.Common;
 using BOCCHI.Common.Data.Zones;
+using BOCCHI.Common.UI;
 using BOCCHI.UI;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Utility.Raii;
 using Microsoft.Extensions.DependencyInjection;
-using Ocelot.Graphics;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using Ocelot.Services.WindowManager;
 using Ocelot.Windows;
+using System.Numerics;
 
 namespace BOCCHI.Renderers;
 
@@ -15,7 +16,6 @@ public class MainRenderer
 (
     IServiceProvider services,
     IZoneProvider zones,
-    IUIService ui,
     OperationalStatusBar statusBar,
     ITranslator<MainWindow> translator
 ) : IMainRenderer
@@ -34,14 +34,26 @@ public class MainRenderer
     {
         if (!zones.GetZone().IsOccultCrescentZone())
         {
-            ui.Text(translator.T(".unsupported_zone"), Color.Red);
+            BocchiUi.DrawStatusChip(translator.T(".unsupported_zone"), BocchiUi.StatusChipKind.Warn);
             return;
         }
 
         statusBar.Render();
-        ImGui.Spacing();
+        BocchiUi.EndStickyHeader();
 
-        foreach(MainWindowSection section in Enum.GetValues<MainWindowSection>())
+        using var body = ImRaii.Child("##bocchi_main_body", new Vector2(0, -1), false);
+        if (!body.Success)
+        {
+            return;
+        }
+
+        MainWindowSection? expandRequest = statusBar.ExpandSectionRequest;
+        if (expandRequest != null)
+        {
+            statusBar.ConsumeExpandRequest();
+        }
+
+        foreach (MainWindowSection section in Enum.GetValues<MainWindowSection>())
         {
             List<IDynamicRenderer> sectionRenderers = OrderedRenderers.Where(r => r.Section == section).ToList();
             if (sectionRenderers.Count == 0)
@@ -49,30 +61,26 @@ public class MainRenderer
                 continue;
             }
 
-            // Trackers: always visible, no collapsing header.
             if (section == MainWindowSection.Trackers)
             {
-                ui.Text(GetSectionTitle(section));
-                ImGui.Indent();
-                foreach (IDynamicRenderer renderer in sectionRenderers)
+                BocchiUi.SectionTitle(GetSectionTitle(section));
+                ImGui.Spacing();
+                if (BocchiUi.BeginPanel("trackers"))
                 {
-                    if (renderer.SubsectionTitle is { } title)
+                    foreach (IDynamicRenderer renderer in sectionRenderers)
                     {
-                        ui.Text(title);
-                        ImGui.Indent();
+                        if (renderer.SubsectionTitle is { } title)
+                        {
+                            BocchiUi.MutedText(title);
+                        }
+
+                        renderer.Render();
+                        ImGui.Spacing();
                     }
 
-                    renderer.Render();
-
-                    if (renderer.SubsectionTitle != null)
-                    {
-                        ImGui.Unindent();
-                    }
-
-                    ImGui.Spacing();
+                    BocchiUi.EndPanel();
                 }
 
-                ImGui.Unindent();
                 continue;
             }
 
@@ -84,11 +92,14 @@ public class MainRenderer
                 MainWindowSection.MobFarmer => statusBar.MobFarmerActive,
                 MainWindowSection.Treasure => statusBar.StandaloneTreasureHuntActive
                                              || statusBar.CarrotHuntActive,
-                var _ => false
+                _ => false,
             };
 
-            // Open once when a mode becomes active (do not force every frame — that fights collapse / layout).
-            if (forceOpen)
+            if (expandRequest == section)
+            {
+                ImGui.SetNextItemOpen(true);
+            }
+            else if (forceOpen)
             {
                 if (openedWhileActive.Add(section))
                 {
@@ -98,10 +109,15 @@ public class MainRenderer
             else
             {
                 openedWhileActive.Remove(section);
+                // World (and idle modes): start collapsed for new installs.
                 ImGui.SetNextItemOpen(false, ImGuiCond.FirstUseEver);
             }
 
-            if (!ImGui.CollapsingHeader(GetSectionTitle(section)))
+            ImGui.PushStyleColor(ImGuiCol.Text, BocchiUi.Header);
+            bool open = ImGui.CollapsingHeader(GetSectionTitle(section));
+            ImGui.PopStyleColor();
+
+            if (!open)
             {
                 continue;
             }
@@ -109,15 +125,19 @@ public class MainRenderer
             ImGui.Indent();
             ImGui.Spacing();
 
-            foreach(IDynamicRenderer renderer in sectionRenderers)
+            foreach (IDynamicRenderer renderer in sectionRenderers)
             {
                 if (renderer.SubsectionTitle is { } title)
                 {
-                    ui.Text(title);
+                    BocchiUi.MutedText(title);
                     ImGui.Indent();
                 }
 
-                renderer.Render();
+                if (BocchiUi.BeginPanel($"{section}_{renderer.GetType().Name}"))
+                {
+                    renderer.Render();
+                    BocchiUi.EndPanel();
+                }
 
                 if (renderer.SubsectionTitle != null)
                 {
@@ -131,5 +151,6 @@ public class MainRenderer
         }
     }
 
-    private string GetSectionTitle(MainWindowSection section) => translator.T($".sections.{section.ToString().ToLowerInvariant()}");
+    private string GetSectionTitle(MainWindowSection section) =>
+        translator.T($".sections.{section.ToString().ToLowerInvariant()}");
 }

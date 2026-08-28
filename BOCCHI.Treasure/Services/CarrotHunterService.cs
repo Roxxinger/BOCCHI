@@ -34,7 +34,6 @@ namespace BOCCHI.Treasure.Services;
 public sealed class CarrotHunterService
 (
     ICarrotTracker carrots,
-    FortuneCarrotAssist fortuneCarrot,
     TreasureConfig treasureConfig,
     UIConfig uiConfig,
     MovementConfig movementConfig,
@@ -52,9 +51,13 @@ public sealed class CarrotHunterService
     IChatGui chat,
     IPluginLog log,
     ITranslator<MainWindow> translator,
-    PandoraAutoOpenHold pandoraAutoOpen
+    PandoraAutoOpenHold pandoraAutoOpen,
+    NinjaHideAssist ninjaHide,
+    CarrotLocationSyncService carrotLocations
 ) : ICarrotHunter, IOnUpdate, IOnStop
 {
+    private const uint FortuneCarrotItemId = 48096;
+
     private const float BunnySearchRadius = 10f;
 
     private static readonly TimeSpan BunnySpawnTimeout = TimeSpan.FromSeconds(20);
@@ -89,6 +92,12 @@ public sealed class CarrotHunterService
     private ulong? currentLiveCarrotId;
 
     private Vector3 currentTargetPosition;
+
+    private readonly List<Vector3> walkVias = [];
+
+    private int walkViaIndex;
+
+    private bool ninjaHideRequired;
 
     private DateTime waitingForBunnySince = DateTime.MinValue;
 
@@ -132,7 +141,7 @@ public sealed class CarrotHunterService
 
     public TimeSpan Elapsed => stopwatch.Elapsed;
 
-    public int FortuneCarrotsRemaining => fortuneCarrot.Count();
+    public int FortuneCarrotsRemaining => InventoryItemAssist.Count(FortuneCarrotItemId);
 
     public bool IsVnavAvailable => vnav.IsAvailable();
 
@@ -157,14 +166,14 @@ public sealed class CarrotHunterService
             return;
         }
 
-        if (!fortuneCarrot.HasAny())
+        if (!InventoryItemAssist.Has(FortuneCarrotItemId))
         {
             BocchiChat.PrintError(chat, uiConfig, "No Fortune Carrots in inventory.");
             return;
         }
 
         IZone zone = zones.GetZone();
-        if (!zone.IsOccultCrescentZone() || zone.GetCarrotData().Count == 0)
+        if (!zone.IsOccultCrescentZone() || carrotLocations.GetHuntPads(zone).Count == 0)
         {
             BocchiChat.PrintError(chat, uiConfig, "No authored carrot map for this zone.");
             return;
@@ -186,13 +195,13 @@ public sealed class CarrotHunterService
 
     public bool UseFortuneCarrot()
     {
-        if (!fortuneCarrot.HasAny())
+        if (!InventoryItemAssist.Has(FortuneCarrotItemId))
         {
             BocchiChat.PrintError(chat, uiConfig, "No Fortune Carrots in inventory.");
             return false;
         }
 
-        if (!fortuneCarrot.TryUse(manual: true))
+        if (!TryUseFortuneCarrot(manual: true))
         {
             return false;
         }
@@ -297,7 +306,7 @@ public sealed class CarrotHunterService
             return false;
         }
 
-        if (!fortuneCarrot.HasAny())
+        if (!InventoryItemAssist.Has(FortuneCarrotItemId))
         {
             BocchiChat.PrintError(chat, uiConfig, OutOfCarrotsMessage);
             return false;
@@ -328,9 +337,12 @@ public sealed class CarrotHunterService
 
         Vector3 destination = currentTargetPosition;
         float localDist = player.Position.Distance2D(destination);
-        // Keep Return for pad↔pad tour hops only — never when the target is already nearby.
+        bool wrongFloor = MathF.Abs(player.Position.Y - destination.Y)
+            > HuntDistances.SameFloorVerticalTolerance;
+        // Keep Return for pad↔pad tour hops — and when 2D looks close but we are on the
+        // wrong shelf (cliff / ridge). Direct then climbs into mesh ("underground").
         bool allowReturn = currentLiveCarrotId == null
-            && localDist > HuntDistances.NearbyLiveDivertRange;
+            && (localDist > HuntDistances.NearbyLiveDivertRange || wrongFloor);
 
         HopMode mode = ChooseHopMode(
             player.Position,
@@ -577,7 +589,13 @@ public sealed class CarrotHunterService
 
         MaybeBindLiveCarrot(authored);
 
+        if (currentLiveCarrotId == null)
+        {
+            SkipPassedWalkVias(authored.Position);
+        }
+
         if (currentLiveCarrotId == null
+            && walkViaIndex >= walkVias.Count
             && CanTrustEmptyCarrotPad(authored.Position)
             && ConfirmEmptyCarrotPad(authored.Id))
         {
@@ -611,7 +629,14 @@ public sealed class CarrotHunterService
         {
             ResetFarStuckWatch();
             vnav.Stop();
+            ninjaHideRequired = false;
+            ninjaHide.EndStealthForInteract();
             Phase = CarrotHuntPhase.UsingItem;
+            return;
+        }
+
+        if (currentLiveCarrotId == null && TryWalkVia(authored))
+        {
             return;
         }
 
@@ -620,12 +645,7 @@ public sealed class CarrotHunterService
             return;
         }
 
-        if (!vnav.IsRunning() && !vnav.IsPathfinding())
-        {
-            vnav.PathfindAndMoveCloseTo(currentTargetPosition, false, OpenTreasureCofferChain.PathArrivalRange);
-        }
-
-        MaybeMount(currentTargetPosition);
+        TryNavigateToward(currentTargetPosition, OpenTreasureCofferChain.PathArrivalRange);
     }
 
     private void TickUsingItem()
@@ -662,14 +682,14 @@ public sealed class CarrotHunterService
             return;
         }
 
-        if (!fortuneCarrot.HasAny())
+        if (!InventoryItemAssist.Has(FortuneCarrotItemId))
         {
             BocchiChat.PrintError(chat, uiConfig, OutOfCarrotsMessage);
             Teardown();
             return;
         }
 
-        if (!fortuneCarrot.TryUse())
+        if (!TryUseFortuneCarrot())
         {
             return;
         }
@@ -719,11 +739,7 @@ public sealed class CarrotHunterService
         if (dist3d > HuntDistances.BunnyInteractRadius
             && !(dist2d <= HuntDistances.StuckNearRadius && IsStuckNearTarget(dist2d)))
         {
-            if (!vnav.IsRunning() && !vnav.IsPathfinding())
-            {
-                vnav.PathfindAndMoveCloseTo(bunny.Position, false, OpenTreasureCofferChain.PathArrivalRange);
-            }
-
+            TryNavigateToward(bunny.Position, OpenTreasureCofferChain.PathArrivalRange);
             return;
         }
 
@@ -738,6 +754,9 @@ public sealed class CarrotHunterService
         {
             return;
         }
+
+        ninjaHideRequired = false;
+        ninjaHide.EndStealthForInteract();
 
         if (!EzThrottler.Throttle("CarrotHunt::InteractBunny", 400))
         {
@@ -769,12 +788,95 @@ public sealed class CarrotHunterService
             currentAuthored = next;
             currentLiveCarrotId = null;
             currentTargetPosition = next.Position;
+            LoadWalkVias(next);
             ResetApproachProgress();
             MaybeBindLiveCarrot(next);
             return true;
         }
 
         return false;
+    }
+
+    private void LoadWalkVias(CarrotData authored)
+    {
+        walkVias.Clear();
+        walkViaIndex = 0;
+
+        // West Suspended Masonry tip (~2.4, 35.9): vnav has no walkable jump link, so it routes
+        // the long way around. Same on-mesh via as treasure 2061 (~3.4, 34.2).
+        if (zones.GetZone().ZoneId == ZoneId.NorthHorn && authored.Id == 25)
+        {
+            walkVias.Add(new(-904f, 157.8f, 636f));
+        }
+
+        if (walkVias.Count == 0)
+        {
+            return;
+        }
+
+        SkipPassedWalkVias(authored.Position);
+        if (walkViaIndex < walkVias.Count)
+        {
+            log.Debug(
+                "Carrot hunt: {Count} approach via(s) for authored {Id}",
+                walkVias.Count,
+                authored.Id);
+        }
+    }
+
+    private void ClearWalkVias()
+    {
+        walkVias.Clear();
+        walkViaIndex = 0;
+    }
+
+    /// <summary>
+    ///     Walk authored approach vias before the pad. Skips vias we are already on, and skips
+    ///     the rest when already on the pad's floor closer to the carrot than to the via.
+    /// </summary>
+    private bool TryWalkVia(CarrotData authored)
+    {
+        SkipPassedWalkVias(authored.Position);
+        if (walkViaIndex >= walkVias.Count)
+        {
+            return false;
+        }
+
+        Vector3 via = walkVias[walkViaIndex];
+        const float viaArrival = 2.5f;
+        float viaDist = player.Position.Distance2D(via);
+        if (viaDist <= viaArrival)
+        {
+            walkViaIndex++;
+            vnav.Stop();
+            return walkViaIndex < walkVias.Count;
+        }
+
+        TryNavigateToward(via, viaArrival);
+        return true;
+    }
+
+    private void SkipPassedWalkVias(Vector3 destination)
+    {
+        while (walkViaIndex < walkVias.Count)
+        {
+            Vector3 via = walkVias[walkViaIndex];
+            if (player.Position.Distance2D(via) <= 3f)
+            {
+                walkViaIndex++;
+                continue;
+            }
+
+            // Already on the island and closer to the carrot than this via — don't backtrack.
+            if (MathF.Abs(player.Position.Y - destination.Y) <= HuntDistances.SameFloorVerticalTolerance
+                && player.Position.Distance2D(destination) <= player.Position.Distance2D(via))
+            {
+                walkViaIndex = walkVias.Count;
+                return;
+            }
+
+            return;
+        }
     }
 
     /// <summary>Re-solve nearest-neighbor tour on remaining pads, then begin the first hop.</summary>
@@ -787,6 +889,7 @@ public sealed class CarrotHunterService
         currentAuthored = null;
         currentLiveCarrotId = null;
         currentTargetPosition = Vector3.Zero;
+        ClearWalkVias();
         itemUseIssued = false;
         waitingForBunnySince = DateTime.MinValue;
         ClearEmptyPadCandidate();
@@ -802,7 +905,7 @@ public sealed class CarrotHunterService
             return;
         }
 
-        if (!fortuneCarrot.HasAny())
+        if (!InventoryItemAssist.Has(FortuneCarrotItemId))
         {
             BocchiChat.PrintError(chat, uiConfig, OutOfCarrotsMessage);
             Teardown();
@@ -853,7 +956,7 @@ public sealed class CarrotHunterService
         int? bestId = null;
         float bestDist = float.MaxValue;
 
-        foreach (CarrotData pad in zones.GetZone().GetCarrotData())
+        foreach (CarrotData pad in carrotLocations.GetHuntPads(zones.GetZone()))
         {
             if (finishedAuthoredIds.Contains(pad.Id))
             {
@@ -931,7 +1034,7 @@ public sealed class CarrotHunterService
     private void RebuildTour(int? preferStartId = null)
     {
         IZone zone = zones.GetZone();
-        List<CarrotData> remaining = zone.GetCarrotData()
+        List<CarrotData> remaining = carrotLocations.GetHuntPads(zone)
             .Where(c => !finishedAuthoredIds.Contains(c.Id))
             .ToList();
 
@@ -1127,7 +1230,13 @@ public sealed class CarrotHunterService
     {
         departure = null;
         arrival = null;
-        bestCost = from.Distance2D(to);
+
+        float directCost = from.Distance2D(to);
+        bool directCrossesFloors = MathF.Abs(from.Y - to.Y)
+            > HuntDistances.SameFloorVerticalTolerance;
+        // 2D distance ignores cliffs — do not prefer Direct when the pad is on another shelf
+        // until aethernet/Return have had a chance to win.
+        bestCost = directCrossesFloors ? float.PositiveInfinity : directCost;
         HopMode bestMode = HopMode.Direct;
 
         float teleportCost = NavigationConstants.AethernetHopCost;
@@ -1159,6 +1268,11 @@ public sealed class CarrotHunterService
 
         if (!allowReturn)
         {
+            if (float.IsPositiveInfinity(bestCost))
+            {
+                bestCost = directCost;
+            }
+
             return bestMode;
         }
 
@@ -1186,6 +1300,11 @@ public sealed class CarrotHunterService
                 departure = main;
                 arrival = shard;
             }
+        }
+
+        if (float.IsPositiveInfinity(bestCost))
+        {
+            bestCost = directCost;
         }
 
         return bestMode;
@@ -1319,7 +1438,7 @@ public sealed class CarrotHunterService
     {
         NorthHornCarrotRegion? active = null;
         int activeOrder = int.MaxValue;
-        foreach (CarrotData remaining in zones.GetZone().GetCarrotData())
+        foreach (CarrotData remaining in carrotLocations.GetHuntPads(zones.GetZone()))
         {
             if (finishedAuthoredIds.Contains(remaining.Id))
             {
@@ -1343,7 +1462,7 @@ public sealed class CarrotHunterService
     {
         Vector3 pos = live.GetPosition();
         float matchSq = HuntDistances.MatchRadiusSq;
-        return zones.GetZone().GetCarrotData()
+        return carrotLocations.GetHuntPads(zones.GetZone())
             .Where(c => !finishedAuthoredIds.Contains(c.Id))
             .OrderBy(c => Vector3.DistanceSquared(c.Position, pos))
             .FirstOrDefault(c => Vector3.DistanceSquared(c.Position, pos) <= matchSq);
@@ -1519,6 +1638,11 @@ public sealed class CarrotHunterService
 
     private void MaybeMount(Vector3 destination)
     {
+        if (ninjaHideRequired || ninjaHide.IsStealthed)
+        {
+            return;
+        }
+
         // Mount allowed in camp (matches treasure hunt).
         MountWait.TryCastIfNeeded(
             conditions,
@@ -1527,6 +1651,112 @@ public sealed class CarrotHunterService
             movementConfig.ShouldAutoMount,
             movementConfig.PreferredMountId,
             inBaseCamp: false);
+    }
+
+    /// <summary>Path/mount only after Hide is ready when required. Same gate as Treasure Hunt.</summary>
+    private bool TryNavigateToward(Vector3 destination, float arrivalRadius)
+    {
+        if (!ApplyNinjaHideGate())
+        {
+            return false;
+        }
+
+        if (!vnav.IsRunning() && !vnav.IsPathfinding()
+            && player.Position.Distance2D(destination) > arrivalRadius)
+        {
+            vnav.PathfindAndMoveCloseTo(destination, false, arrivalRadius);
+        }
+
+        MaybeMount(destination);
+        return true;
+    }
+
+    /// <returns>False while still preparing Hide (caller should wait).</returns>
+    private bool ApplyNinjaHideGate()
+    {
+        if (!treasureConfig.UseNinjaHideOnDangerousRoutes)
+        {
+            ninjaHideRequired = false;
+            return true;
+        }
+
+        UpdateNinjaHideRequired();
+
+        if (!ninjaHideRequired)
+        {
+            ninjaHide.RestorePreviousGearsetIfNeeded();
+            return true;
+        }
+
+        if (conditions[ConditionFlag.InCombat])
+        {
+            return true;
+        }
+
+        if (ninjaHide.EnsureReady(treasureConfig.NinjaGearsetNumber))
+        {
+            if (treasureConfig.UseOccultSprintWhileHidden)
+            {
+                ninjaHide.TryOccultSprintWhileHidden();
+            }
+
+            return true;
+        }
+
+        if (treasureConfig.NinjaGearsetNumber <= 0 && !ninjaHide.IsNinja)
+        {
+            log.Warning(
+                "Ninja Hide is on but gearset is 0 and you are not on Ninja — skipping Hide for this threat");
+            ninjaHideRequired = false;
+            return true;
+        }
+
+        vnav.Stop();
+        pathfinder.Stop();
+        return false;
+    }
+
+    private void UpdateNinjaHideRequired()
+    {
+        if (KnowledgeThreat.TryFindIsleblazer(
+                objects,
+                player.Position,
+                KnowledgeThreat.IsleblazerUnhideDistance,
+                out _))
+        {
+            ninjaHideRequired = false;
+            return;
+        }
+
+        if (KnowledgeThreat.TryGetPlayerForayLevel(objects) is not int foray)
+        {
+            ninjaHideRequired = false;
+            return;
+        }
+
+        int hideAt = KnowledgeThreat.HideAtOrAbove(foray, treasureConfig.KnowledgeHideOffset);
+        float enter = treasureConfig.KnowledgeThreatEnterDistance;
+        if (ninjaHide.IsMounted)
+        {
+            enter += KnowledgeThreat.MountedThreatEnterBonus;
+        }
+
+        float exit = Math.Max(treasureConfig.KnowledgeThreatExitDistance, enter);
+
+        if (ninjaHideRequired)
+        {
+            if (!KnowledgeThreat.TryFindThreat(objects, player.Position, hideAt, exit, out _, out _))
+            {
+                ninjaHideRequired = false;
+            }
+
+            return;
+        }
+
+        if (KnowledgeThreat.TryFindThreat(objects, player.Position, hideAt, enter, out _, out _))
+        {
+            ninjaHideRequired = true;
+        }
     }
 
     private bool TryRecoverFromStuckWalk(int authoredId, float distance)
@@ -1577,11 +1807,25 @@ public sealed class CarrotHunterService
                 return true;
             }
 
+            stuckWatchStartedUtc = now;
+            stuckNudgeIssued = false;
+
+            // Wrong shelf: repathing Direct climbs the same cliff. Re-pick Return/aethernet.
+            if (MathF.Abs(player.Position.Y - currentTargetPosition.Y)
+                > HuntDistances.SameFloorVerticalTolerance)
+            {
+                log.Debug(
+                    "Carrot hunt: still stuck on authored {Id} (wrong floor) — re-routing via camp/aethernet",
+                    authoredId);
+                pathfinder.Stop();
+                vnav.Stop();
+                BeginRouteToCurrentAuthored();
+                return true;
+            }
+
             log.Debug(
                 "Carrot hunt: still stuck on authored {Id} after nudge — repathing",
                 authoredId);
-            stuckWatchStartedUtc = now;
-            stuckNudgeIssued = false;
             pathfinder.Stop();
             vnav.Stop();
             vnav.PathfindAndMoveCloseTo(currentTargetPosition, false, OpenTreasureCofferChain.PathArrivalRange);
@@ -1677,6 +1921,7 @@ public sealed class CarrotHunterService
         currentAuthored = null;
         currentLiveCarrotId = null;
         currentTargetPosition = Vector3.Zero;
+        ClearWalkVias();
         itemUseIssued = false;
         waitingForBunnySince = DateTime.MinValue;
         usedLiveCarrotIdsAtPad.Clear();
@@ -1687,6 +1932,18 @@ public sealed class CarrotHunterService
         activeReturnChain = null;
         returnThenStop = false;
         returnThenAethernet = false;
+    }
+
+    private bool TryUseFortuneCarrot(bool manual = false)
+    {
+        string throttleKey = manual ? "CarrotHunt::FortuneCarrotManual" : "CarrotHunt::FortuneCarrot";
+        int throttleMs = manual ? 500 : 1000;
+        return InventoryItemAssist.TryUse(
+            FortuneCarrotItemId,
+            throttleKey,
+            throttleMs,
+            log,
+            "Carrot hunt");
     }
 
     private void SoftStopWhileUnconscious()
@@ -1717,10 +1974,12 @@ public sealed class CarrotHunterService
         finishedAuthoredIds.Clear();
         tour.Clear();
         tourIndex = 0;
+        ninjaHideRequired = false;
         ClearCurrent();
         stopwatch.Reset();
         vnav.Stop();
         pathfinder.Stop();
+        ninjaHide.RestorePreviousGearsetIfNeeded();
         pandoraAutoOpen.Release();
         log.Information("Carrot hunt stopped");
     }

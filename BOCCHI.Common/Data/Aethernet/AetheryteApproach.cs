@@ -1,3 +1,4 @@
+using BOCCHI.Common.Config;
 using BOCCHI.Common.Data.Zones;
 using Dalamud.Plugin.Services;
 using Ocelot.Chain;
@@ -21,6 +22,8 @@ public static class AetheryteApproach
         IPathfinder pathfinder,
         IVNavmeshIpc vnav,
         ILifestreamIpc lifestream,
+        ICondition conditions,
+        MovementConfig movement,
         string chainName,
         bool sprintEnabled = true)
     {
@@ -63,6 +66,7 @@ public static class AetheryteApproach
                     Vector3 target = nearest.GetCampStandOffPosition(current.Position);
 
                     SprintAssist.MaybeCast(sprintEnabled, zone.IsInBasecamp());
+                    MaybeMountToward(zone, objects, conditions, movement, target);
                     StartApproachPath(pathfinder, target);
 
                     ChainResult result = await chains.Create($"{chainName}::CloseInWait")
@@ -81,10 +85,14 @@ public static class AetheryteApproach
                                     return ValueTask.FromResult(true);
                                 }
 
-                                // Re-issue if vnav went idle short of magenta.
-                                if (pathfinder.GetState() == PathfindingState.Idle)
+                                Vector3 retryTarget = nearest.GetCampStandOffPosition(p.Position);
+                                MaybeMountToward(zone, objects, conditions, movement, retryTarget);
+
+                                // Re-issue only if idle and still meaningfully short — not every tick
+                                // when already parked on the stand-off tile (vnav Idle + same poly).
+                                if (pathfinder.GetState() == PathfindingState.Idle
+                                    && p.Position.Distance2D(retryTarget) > AethernetNavigation.PathfindArrivalRadius)
                                 {
-                                    Vector3 retryTarget = nearest.GetCampStandOffPosition(p.Position);
                                     StartApproachPath(pathfinder, retryTarget);
                                 }
 
@@ -111,6 +119,23 @@ public static class AetheryteApproach
 
                     return StepResult.Failure("Could not approach within Lifestream range.");
                 }), $"{chainName}::CloseIn");
+    }
+
+    private static void MaybeMountToward(
+        IZone zone,
+        IObjectTable objects,
+        ICondition conditions,
+        MovementConfig movement,
+        Vector3 target)
+    {
+        MountWait.TryCastIfNeeded(
+            conditions,
+            objects,
+            target,
+            movement.ShouldAutoMount,
+            movement.PreferredMountId,
+            zone.IsInBasecamp(),
+            zone);
     }
 
     private static void StartApproachPath(IPathfinder pathfinder, Vector3 target)

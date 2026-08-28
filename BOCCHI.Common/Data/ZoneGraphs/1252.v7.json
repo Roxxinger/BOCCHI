@@ -528,9 +528,9 @@
       "Id": "7e1aaddd-97f1-47bf-8c18-82bfadfc7ca3",
       "Type": 5,
       "Position": {
-        "X": 869.891,
-        "Y": 122,
-        "Z": 180.11
+        "X": 860.536,
+        "Y": 1.22,
+        "Z": 169.893
       },
       "Metadata": {
         "MetadataType": "ActivityNodeMetadata",

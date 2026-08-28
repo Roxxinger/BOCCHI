@@ -1,11 +1,22 @@
-# BOCCHI Coffer Observation API
+Cloudflare Worker that accepts anonymous treasure-coffer and chewed-carrot observations from BOCCHI, plus pot-cycle sync.
 
-Cloudflare Worker that accepts opt-in anonymous treasure-coffer observations from BOCCHI.
-Payload shape matches AOCC (`POST /api/v1/observations`) so the plugin URL can point at either API.
+Payload shape for coffers matches AOCC (`POST /api/v1/observations`) so the plugin URL can point at either API.
 
 Unlike AOCC’s pot-reveal-only filter, this API accepts **any positive coffer `dataId`** in Occult Crescent territories (**1252** South Horn, **1346** North Horn).
 
-Also hosts **pot-cycle sync** (`/api/v1/pot-cycles`) so BOCCHI clients can share Magic Pot spawn anchors per instance, and **carrot location sync** (`/api/v1/carrot-locations`) for crowdsourced chewed-carrot pads used for mesh-baked Carrot Hunt paths.
+**End-user use in BOCCHI (Config → Treasure Hunter → Share maps with the community; default on):**
+- **Pot cycles** (`/api/v1/pot-cycles`) — share Magic Pot spawn anchors per instance.
+- **Carrot locations** (`/api/v1/carrot-locations`) — Carrot Hunt downloads accepted pads and merges with baked list; clients upload sightings.
+- **Coffer candidates** (`/api/v1/candidates` + observation POST) — Treasure Hunt downloads accepted spots and unions them with the baked map; clients upload bronze/silver opens.
+
+## Paid-plan behaviour
+
+- Cron every **5 minutes** (processors + pot-cycle prune).
+- Coffer/carrot clustering processes up to **500** pending rows per run.
+- Pot-cycle prune deletes up to **25k × 20 rounds** per cron (no free-tier write cap).
+- Unique index on `(instance_key, pot_fate_id, spawn_at_unix)` + `INSERT OR IGNORE`.
+- Public catalogs (`/api/v1/candidates`, `/api/v1/carrot-locations`) use edge Cache API + `Cache-Control: max-age=300`.
+- Separate IP rate limits: **60/min** observations & carrots, **120/min** pot-cycle GET/POST.
 
 ## Local setup
 
@@ -38,7 +49,7 @@ Copy into BOCCHI is not required — the plugin posts to:
 
 `https://bocchi-coffer-api.kagekazu.workers.dev/api/v1/observations`
 
-(Users only see the opt-in checkbox; the URL is hardcoded.)
+(URL is hardcoded; sync follows Share maps — default on, while in Occult Crescent.)
 
 Optional admin token:
 
@@ -48,8 +59,8 @@ npx wrangler secret put ADMIN_TOKEN
 
 ## Privacy
 
-Submissions are opt-in. Stored fields are territory, coffer data id, world coordinates, coffer type label, anonymous installation hash, plugin version, and observed time. No character or account names.
+Submissions are anonymous (no character or account names). Stored coffer fields are territory, coffer data id, world coordinates, coffer type label, installation hash, plugin version, and observed time.
 
-Pot-cycle rows store an instance fingerprint hash, territory, datacenter id, pot fate id, spawn unix time, installation hash, plugin version, and observed time — still no character or account names.
+Pot-cycle rows store an instance fingerprint hash, territory, datacenter id, pot fate id, spawn unix time, installation hash, plugin version, and observed time.
 
-Carrot location rows store territory, world coordinates, object base id (`2010139`), anonymous installation hash, plugin version, and observed time. Candidates auto-accept after three distinct installations within ~1.5 yalms.
+Carrot location rows store territory, world coordinates, object base id (`2010139`), installation hash, plugin version, and observed time. Candidates auto-accept after three distinct installations within ~1.5 yalms.

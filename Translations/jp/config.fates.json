@@ -1,6 +1,6 @@
 {
   "label": "FATE",
-  "tooltip": "不正モードがやってよい FATE と、進行が進んだ FATE の見送りです。",
+  "tooltip": "不正モードがやってよい FATE と、進行が進んだ FATE の見送り。",
   "sections": {
     "skip": "スキップ",
     "allowlist": "許可する FATE"
@@ -8,11 +8,11 @@
   "fields": {
     "max_fate_progress_percent": {
       "label": "進行度（%）以上のFATEはスキップ",
-      "tooltip": "すでにこの進行度のFATEは始めません。0＝スキップしない。すでに参加中のFATEは最後までやります。"
+      "tooltip": "すでにこの進行度の FATE は始めない。0＝スキップしない。すでに参加中は最後までやる。"
     },
     "disabled_fate_ids": {
       "label": "許可する FATE",
-      "tooltip": "チェックした FATE を行います。外すとスキップします。「マジックポットFATEを優先」がオンのあいだ、ポットは必須と表示され外せません。",
+      "tooltip": "オン：やる。\nオフ：スキップ。\nマジックポット FATE 優先がオンのあいだ、ポットは必須のまま表示。",
       "empty": "このゾーンに表示する FATE がありません。",
       "forced_note": "「マジックポットFATEを優先」がオンです — ポットは必須です。",
       "forced_suffix": " — 必須",

@@ -65,13 +65,18 @@ public class PathStepExecutor
             {
                 DistanceThreshold = range > 0f ? range : 2f,
                 ShouldSnapToFloor = !nearAetheryte,
-                WhileMoving = () => MountWait.TryCastIfNeeded(
-                    conditions,
-                    objects,
-                    destination,
-                    movement.ShouldAutoMount,
-                    movement.PreferredMountId,
-                    zones.GetZone().IsInBasecamp()),
+                WhileMoving = () =>
+                {
+                    IZone zone = zones.GetZone();
+                    MountWait.TryCastIfNeeded(
+                        conditions,
+                        objects,
+                        destination,
+                        movement.ShouldAutoMount,
+                        movement.PreferredMountId,
+                        zone.IsInBasecamp(),
+                        zone);
+                },
             });
     }
 }

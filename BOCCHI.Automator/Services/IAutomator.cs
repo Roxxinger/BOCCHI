@@ -29,6 +29,9 @@ public interface IAutomator
     /// <summary>Suspend or resume the automator pipeline so treasure hunt can own vnav.</summary>
     void SetSuspendedForTreasure(bool suspended);
 
+    /// <summary>Suspend or resume the automator pipeline so shopping can own vnav.</summary>
+    void SetSuspendedForShopping(bool suspended);
+
     /// <summary>Stop current pathfinding without clearing goals or run mode (soft pause).</summary>
     void SoftStopPathfinding();
 

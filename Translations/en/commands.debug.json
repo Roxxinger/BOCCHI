@@ -1,3 +1,3 @@
 {
-  "help": "Debug helpers. /bocchi debug ai-preset — create the BOCCHI AI BossMod presets if they are missing, and print their saved JSON."
+  "help": "Debug helpers. /bocchi debug ce [id] — CE travel/wait diagnostics (stand where it stops wrong). /bocchi debug pos — copy a path via-point. /bocchi debug ai-preset — create BOCCHI AI BossMod presets if missing."
 }

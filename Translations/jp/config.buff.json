@@ -1,6 +1,6 @@
 {
   "label": "バフ",
-  "tooltip": "サポートジョブのバフを自動で維持します。",
+  "tooltip": "サポートジョブのバフを自動で維持。",
   "sections": {
     "automation": "自動化",
     "which": "どのバフ"
@@ -8,31 +8,26 @@
   "fields": {
     "should_automate_buffs": {
       "label": "バフを自動化",
-      "tooltip": "不正モード中、下で選んだバフをナレッジクリスタルで維持します。"
+      "tooltip": "オン：不正モード中とモブファーマーのクリスタルバフ一時停止時に、選択したバフをナレッジクリスタルでかけ直す。\nオフ：バフの自動更新なし。"
     },
     "apply_romeos_ballad": {
-      "label": "あいのうた",
-      "tooltip": "バフ自動化がオンのとき、あいのうたを維持します。"
+      "label": "あいのうた"
     },
     "apply_enduring_fortitude": {
-      "label": "いのり",
-      "tooltip": "バフ自動化がオンのとき、いのりを維持します。"
+      "label": "いのり"
     },
     "apply_fleetfooted": {
-      "label": "かまえる",
-      "tooltip": "バフ自動化がオンのとき、かまえるを維持します。"
+      "label": "かまえる"
     },
     "apply_quicker_step": {
-      "label": "クイックステップ",
-      "tooltip": "バフ自動化がオンのとき、クイックステップを維持します。"
+      "label": "クイックステップ"
     },
     "apply_buffs_using_inquiring_mind": {
       "label": "できるときはたんきゅうしんを使う",
-      "tooltip": "ナレッジクリスタル付近で、フリーランサーが選んだ解放済みバフをまとめて付与します。"
+      "tooltip": "ナレッジクリスタル付近で、フリーランサーが選んだ解放済みバフをまとめて付与。"
     },
     "reapply_threshold": {
-      "label": "残り（分）以下でかけ直す",
-      "tooltip": "残り時間がこの分数以下になったら、バフをかけ直します。"
+      "label": "残り（分）以下でかけ直す"
     }
   }
 }

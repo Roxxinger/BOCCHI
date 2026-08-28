@@ -1,18 +1,17 @@
 {
   "label": "移动",
-  "tooltip": "上坐骑、冲刺与卡住处理。适用于所有赶路方式：非法模式、寻宝、萝卜狩猎与刷怪。",
+  "tooltip": "上坐骑、冲刺与卡住处理。适用于违规模式、寻宝、胡萝卜狩猎、刷怪的所有赶路。",
   "sections": {
     "mount": "坐骑与冲刺",
     "unstuck": "卡住处理"
   },
   "fields": {
     "sprint_on_aetheryte_approach": {
-      "label": "前往以太之光时冲刺",
-      "tooltip": "步行接近以太之光时使用冲刺。"
+      "label": "前往以太之光时冲刺"
     },
     "should_auto_mount": {
       "label": "赶路时上坐骑",
-      "tooltip": "长距离前往危命任务或紧急遭遇战时上坐骑；途中若下了坐骑，会重新上坐骑。"
+      "tooltip": "开：长途赶路时上坐骑，中途下马会再上（违规模式、寻宝、胡萝卜寻宝、刷怪）。\n关：除非别处让你上马，否则步行。"
     },
     "preferred_mount_id": {
       "label": "偏好坐骑",
@@ -21,11 +20,10 @@
     },
     "should_jump_when_stuck": {
       "label": "卡住时跳跃",
-      "tooltip": "在岩石、台阶或楼梯上卡住时跳跃。适用于所有赶路。"
+      "tooltip": "在岩石、台阶或楼梯上卡住时。"
     },
     "jump_when_stuck_seconds": {
-      "label": "跳跃前等待秒数",
-      "tooltip": "静止这么久之后尝试跳跃。"
+      "label": "跳跃前等待秒数"
     }
   }
 }

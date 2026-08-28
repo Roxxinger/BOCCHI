@@ -1,6 +1,7 @@
 using BOCCHI.Common.Config.Fields;
 using Ocelot.Config;
 using Ocelot.Config.Fields;
+using BOCCHI.Common.Config.Fields;
 
 namespace BOCCHI.Common.Config;
 
@@ -70,6 +71,12 @@ public class ShoppingConfig : IAutoConfig
     ///     Item IDs to buy from the Antiquarian currency shop (legacy simple allowlist — kept so
     ///     existing configs keep loading; superseded by <see cref="Targets"/> when non-empty).
     /// </summary>
+    [ShopShoppingList(Order = 0)]
+    public List<uint> ShoppingOrder { get; set; } = [];
+
+    public Dictionary<uint, ShopListEntry> Shopping { get; set; } = new();
+
+    /// <summary>Legacy checkbox picks — migrated into <see cref="Shopping"/> on load.</summary>
     public HashSet<uint> PreferredItemIds { get; set; } = [];
 
     /// <summary>Per-territory currency reserves and start thresholds (edited in config JSON / debug for now).</summary>

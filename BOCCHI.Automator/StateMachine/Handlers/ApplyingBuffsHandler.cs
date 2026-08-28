@@ -6,6 +6,8 @@ using BOCCHI.Common.Data.StateMemory;
 using BOCCHI.Common.Data.SupportJobs;
 using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Services;
+using Ocelot.Services.Logger;
+using Ocelot.Services.Pathfinding;
 using Ocelot.States;
 using Ocelot.States.Score;
 
@@ -18,7 +20,9 @@ public class ApplyingBuffsHandler
     IZoneProvider zones,
     IAutomatorMemory memory,
     ISupportJobFactory jobs,
-    BuffConfig config
+    IPathfinder pathfinder,
+    BuffConfig config,
+    ILogger<ApplyingBuffsHandler> logger
 ) : ScoreStateHandler<AutomatorState, StatePriority>(AutomatorState.ApplyingBuffs)
 {
     private IStateMachine<BuffState>? stateMachine;
@@ -61,13 +65,43 @@ public class ApplyingBuffsHandler
         }
     }
 
+    public override void Exit(AutomatorState next)
+    {
+        base.Exit(next);
+        // Buff SM finished or we were pre-empted — drop the latch so Choosing/Pathfinding can run.
+        if (next != AutomatorState.ApplyingBuffs)
+        {
+            ClearBuffLatch();
+        }
+    }
+
     public override void Handle()
     {
-        stateMachine?.Update();
+        if (stateMachine == null)
+        {
+            return;
+        }
+
+        stateMachine.Update();
+
+        // Manual BuffRunner aborts on NoCrystalsFound; Illegal Mode must clear the latch too.
+        if (stateMachine.State == BuffState.NoCrystalsFound)
+        {
+            logger.Warning("Illegal Mode buff run aborted — no knowledge crystals nearby");
+            pathfinder.Stop();
+            ClearBuffLatch();
+            stateMachine = null;
+        }
     }
 
     public override void Render()
     {
         stateMachine?.Render();
+    }
+
+    private void ClearBuffLatch()
+    {
+        memory.Forget<ApplyingBuffsMemory>();
+        memory.Forget<InquiringMindAttemptedMemory>();
     }
 }

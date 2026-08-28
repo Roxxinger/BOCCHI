@@ -1,3 +1,4 @@
+using BOCCHI.Common.Data.CriticalEncounters;
 using BOCCHI.Common.Data.Zones.Graph;
 using BOCCHI.Common.Services;
 using Ocelot.Extensions;
@@ -88,7 +89,8 @@ public static class NavigationConstants
     /// <summary>
     ///     Registration size/centre still come from LGB. Shape prefers the zone CE table when we
     ///     have a row — LGB <c>TriggerBoxShape</c> can disagree with the blue ring (e.g. Lost on
-    ///     the Wind is a circle). Only authored squares (A Beast Unleashed) stay square.
+    ///     the Wind is a circle). Authored squares (A Beast Unleashed, Cursed Resurgence, Dark
+    ///     Artistry) stay square.
     /// </summary>
     public static ActivityAreaShape ResolveCriticalEncounterShape(ActivityData? authored, bool lgbIsSquare) =>
         authored is not null
@@ -221,8 +223,13 @@ public static class NavigationApproach
         Vector3 center,
         float combatRadius,
         ActivityAreaShape shape = ActivityAreaShape.Circle,
-        float standRadius = 0f)
+        float standRadius = 0f,
+        int? stableSeed = null)
     {
+        Random rng = stableSeed is int seed
+            ? new Random(HashCode.Combine(seed, 0xCE))
+            : Random.Shared;
+
         float red = MathF.Max(1f, standRadius > 0f ? standRadius : combatRadius);
         if (shape == ActivityAreaShape.Square)
         {
@@ -235,8 +242,8 @@ public static class NavigationApproach
                 maxFromCenter = 0.5f;
             }
 
-            float x = (Random.Shared.NextSingle() * 2f - 1f) * maxFromCenter;
-            float z = (Random.Shared.NextSingle() * 2f - 1f) * maxFromCenter;
+            float x = (rng.NextSingle() * 2f - 1f) * maxFromCenter;
+            float z = (rng.NextSingle() * 2f - 1f) * maxFromCenter;
             return center + new Vector3(x, 0f, z);
         }
 
@@ -248,8 +255,8 @@ public static class NavigationApproach
         }
 
         // Scatter on the disc. An inbound ray from the aethernet often lands on a ramp outside the ring.
-        float dist = min + Random.Shared.NextSingle() * (max - min);
-        float angle = Random.Shared.NextSingle() * MathF.PI * 2f;
+        float dist = min + rng.NextSingle() * (max - min);
+        float angle = rng.NextSingle() * MathF.PI * 2f;
         return center + new Vector3(MathF.Cos(angle) * dist, 0f, MathF.Sin(angle) * dist);
     }
 
@@ -258,9 +265,12 @@ public static class NavigationApproach
         if (goal.Type == NodeType.CriticalEncounter
             && goal.Metadata is ActivityNodeMetadata { CombatRadius: > 0 } meta)
         {
+            float radius = meta.CombatRadius > CriticalEncounter.MaxRegistrationRadius
+                ? CriticalEncounter.FallbackRegistrationRadius
+                : meta.CombatRadius;
             return GetCriticalEncounterApproachPosition(
                 goal.Position,
-                meta.CombatRadius,
+                radius,
                 meta.AreaShape,
                 meta.StandRadius);
         }
@@ -289,17 +299,26 @@ public static class NavigationApproach
                 continue;
             }
 
-            if (geometry?.TryGet((ushort)candidate.Id) is not { Radius: > 0 } area)
+            if (geometry?.TryResolveForAuthored(
+                    (ushort)candidate.Id,
+                    candidate.Position,
+                    out _) is not { Radius: > 0 } area)
             {
                 continue;
             }
 
             activity = candidate;
-            Vector3 center = area.Center;
-            float radius = area.Radius;
             ActivityAreaShape shape = NavigationConstants.ResolveCriticalEncounterShape(
                 candidate,
                 area.IsSquare);
+            CriticalEncounter.SanitizeRegistration(
+                candidate.Position,
+                area.Center,
+                area.Radius,
+                out Vector3 center,
+                out float radius,
+                out _,
+                candidate.CombatRadius);
 
             if (NavigationConstants.IsInsideCriticalEncounterWaitArea(
                     center, radius, shape, from))

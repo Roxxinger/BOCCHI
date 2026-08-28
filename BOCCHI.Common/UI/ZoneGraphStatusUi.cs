@@ -1,6 +1,5 @@
 using BOCCHI.Common.Data.Zones;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using Ocelot.Windows;
 
 namespace BOCCHI.Common.UI;
@@ -51,26 +50,19 @@ public static class ZoneGraphStatusUi
         }
     }
 
-    public static void Draw(
-        IZone zone,
-        IUIService ui,
-        ITranslator<MainWindow> translator,
-        IBrandingService? branding = null)
+    public static void Draw(IZone zone, ITranslator<MainWindow> translator)
     {
         if (!TryFormat(zone, translator, out string label, out string value, out bool emphasize))
         {
             return;
         }
 
-        if (branding != null)
-        {
-            ui.LabelledValue(
-                label,
-                value,
-                valueColor: emphasize ? branding.DalamudYellow : branding.DalamudGrey);
-            return;
-        }
+        BocchiUi.StatusChipKind kind = emphasize
+            ? BocchiUi.StatusChipKind.Warn
+            : zone.GraphLoadState == ZoneGraphLoadState.Ready
+                ? BocchiUi.StatusChipKind.Ok
+                : BocchiUi.StatusChipKind.Muted;
 
-        ui.LabelledValue(label, value);
+        BocchiUi.DrawStatusChip($"{label}: {value}", kind);
     }
 }

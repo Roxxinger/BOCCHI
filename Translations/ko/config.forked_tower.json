@@ -1,21 +1,20 @@
 {
   "label": "포크 타워",
-  "tooltip": "남부 포크 타워 보조입니다. 북부 지원은 나중에 추가됩니다.",
+  "tooltip": "남부 포크 타워 보조. 북부 지원은 나중에.",
   "sections": {
     "helpers": "보조"
   },
   "fields": {
     "draw_potential_trap_positions": {
       "label": "함정 예상 위치 표시",
-      "tooltip": "남부 포크 타워 안에서, 알려진 함정 스폰 지점에 원을 그립니다."
+      "tooltip": "남부 포크 타워 안 알려진 함정 스폰 지점에 원을 그림."
     },
     "show_registration_countdown": {
       "label": "등록 카운트다운 표시",
-      "tooltip": "비상 조우 목록에 포크 타워 등록/준비 카운트다운을 표시합니다(남부)."
+      "tooltip": "비상 조우 목록에 포크 타워 등록/준비 카운트다운 표시(남부)."
     },
     "trap_draw_range": {
-      "label": "이 거리 이내 함정만 표시(일름)",
-      "tooltip": "이보다 먼 함정 표시는 숨깁니다."
+      "label": "이 거리 이내 함정만 표시(일름)"
     }
   }
 }

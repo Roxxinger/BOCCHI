@@ -5,7 +5,6 @@ using Dalamud.Plugin.Services;
 using Lumina.Excel;
 using Ocelot.Config.Renderers;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using System.Reflection;
 using XIVFate = Lumina.Excel.Sheets.Fate;
 
@@ -14,7 +13,6 @@ namespace BOCCHI.Common.Config.Renderers;
 public class DisabledFateIdsRenderer(
     IZoneProvider zones,
     IDataManager data,
-    IUIService ui,
     AutomatorConfig automator
 ) : IFieldRenderer<DisabledFateIdsAttribute>
 {
@@ -49,7 +47,6 @@ public class DisabledFateIdsRenderer(
             prop,
             owner,
             translator,
-            ui,
             nameof(DisabledFateIdsRenderer),
             fates,
             id => fateSheet.GetRow(id).Name.ToString(),

@@ -124,8 +124,10 @@ public class InCriticalEncounterHandler
     public override void Exit(AutomatorState next)
     {
         // Keep CE commitment across Dead so raise does not drop the goal as "still pathing".
+        // Drop SuspendTravel first so DisableAi actually turns combat off while down.
         if (next == AutomatorState.Dead)
         {
+            memory.Forget<SuspendTravelForActivityMemory>();
             autoRotation.DisableAi();
             logger.Info("Died in CE — keeping commitment for raise");
             base.Exit(next);

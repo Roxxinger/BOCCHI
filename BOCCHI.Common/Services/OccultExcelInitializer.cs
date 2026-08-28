@@ -1,10 +1,12 @@
+using BOCCHI.Common.Data.Aethernet;
 using BOCCHI.Common.Data.OccultCrescent;
+using BOCCHI.Common.Data.Shopping;
 using Dalamud.Plugin.Services;
 using Ocelot.Lifecycle;
 
 namespace BOCCHI.Common.Services;
 
-/// <summary>Loads Occult Crescent action and currency ids from excel before other start hooks run.</summary>
+/// <summary>Loads Occult excel ids and Return Yes/No templates before other start hooks run.</summary>
 public sealed class OccultExcelInitializer(IDataManager data) : IOnStart
 {
     public int Order => int.MaxValue;
@@ -15,5 +17,7 @@ public sealed class OccultExcelInitializer(IDataManager data) : IOnStart
         OccultCurrencies.Initialize(data);
         PhantomBuffs.Initialize(data);
         PhantomJobStatuses.Initialize(data);
+        ReturnYesNo.Initialize(data);
+        ShopCatalog.Initialize(data);
     }
 }

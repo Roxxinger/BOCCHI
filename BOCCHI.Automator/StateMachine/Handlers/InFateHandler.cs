@@ -44,8 +44,17 @@ public class InFateHandler
             return StatePriority.Never;
         }
 
-        // AI cannot pick up a FATE from the registration rim. Stay in Pathfinding until we are
-        // close enough for AutoTarget / StayCloseToTarget; Combat None walks to mobs from here.
+        // Already handed off once — stay In FATE while EventId matches even if AI dodges
+        // outside the 25y handoff ring (otherwise travel stays suspended and Pathfinding
+        // cannot walk back in; manual re-entry also never re-scores In FATE).
+        if (memory.TryRemember<SuspendTravelForActivityMemory>(out SuspendTravelForActivityMemory _))
+        {
+            return StatePriority.VeryHigh;
+        }
+
+        // First entry: AI cannot pick up a FATE from the registration rim. Stay in
+        // Pathfinding until close enough for AutoTarget / StayCloseToTarget.
+        // Combat None walks to mobs from here (no handoff gate).
         if (config.CombatAutorotation.UsesCombatAutomation()
             && !context.IsInCombatWith(fateGoal.id)
             && objects.LocalPlayer is { } player
@@ -71,6 +80,25 @@ public class InFateHandler
 
                 logger.Info("Entered FATE {Id} — travel suspended", context.GetFateId()?.Value.ToString() ?? "?");
             }
+
+    public override void Exit(AutomatorState next)
+    {
+        // Drop SuspendTravel first so DisableAi actually turns combat off while down.
+        // After raise, Pathfinding walks back to handoff if EventId alone is not enough.
+        if (next == AutomatorState.Dead)
+        {
+            memory.Forget<SuspendTravelForActivityMemory>();
+            autoRotation.DisableAi();
+            logger.Info("Died in FATE — clearing travel suspend for raise");
+            base.Exit(next);
+            return;
+        }
+
+        memory.Forget<SuspendTravelForActivityMemory>();
+        autoRotation.DisableAi();
+        logger.Info("Left FATE — travel resumed");
+        base.Exit(next);
+    }
 
     public override void Handle()
     {

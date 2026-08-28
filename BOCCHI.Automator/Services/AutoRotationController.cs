@@ -53,6 +53,12 @@ public class AutoRotationController(
 
     public void TeardownForIllegalMode() => session.Teardown();
 
+    /// <summary>
+    ///     After raise: drop job apply latches so the next In CE / Sync Enable re-issues RSR Henched
+    ///     (RSR can ignore Henched while unconscious while we still cached success).
+    /// </summary>
+    public void OnRevived() => session.ClearJobAppliedCache();
+
     public void EnableForFate() => session.Enable(CombatActivity.Fate);
 
     public void EnableForCriticalEncounter() => session.Enable(CombatActivity.CriticalEncounter);
@@ -71,7 +77,11 @@ public class AutoRotationController(
     /// </summary>
     public void DisableAi()
     {
+        // Keep AI on only while In FATE / In CE owns the character (travel suspended).
+        // A leftover CE EventId alone used to block Disable — Cursed Concern tagged travellers
+        // and left RSR/BMR fighting trash while mounted (#200).
         if (!CombatSuppressedByActivity
+            && memory.TryRemember<SuspendTravelForActivityMemory>(out SuspendTravelForActivityMemory _)
             && (criticalEncounters.IsInCriticalEncounter() || fates.IsInFate()))
         {
             return;
@@ -106,7 +116,16 @@ public class AutoRotationController(
             return;
         }
 
-        if (criticalEncounters.IsInCriticalEncounter())
+        // EventId / IsInFate alone is not enough — only arm after In FATE / In CE entered
+        // (SuspendTravel). Otherwise a CE you ride past keeps BOCCHI AI CE + RSR on (#200).
+        if (!memory.TryRemember<SuspendTravelForActivityMemory>(out SuspendTravelForActivityMemory _))
+        {
+            return;
+        }
+
+        // Committed CE survives death (EventId can lag after YesAlready raise) — still re-arm.
+        if (memory.TryRemember<CommittedCriticalEncounterMemory>(out CommittedCriticalEncounterMemory _)
+            || criticalEncounters.IsInCriticalEncounter())
         {
             session.Enable(CombatActivity.CriticalEncounter);
             return;

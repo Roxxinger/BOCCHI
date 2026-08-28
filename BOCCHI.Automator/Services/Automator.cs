@@ -41,6 +41,7 @@ public class Automator
     ILifestreamIpc lifestream,
     IZoneProvider zones,
     IFateRepository fates,
+    IPotCycleTracker potCycle,
     IObjectTable objects,
     IChatGui chat,
     IPlayer player,
@@ -211,7 +212,8 @@ public class Automator
     ///     treasure filler: whichever ran first in the frame either started the farm or latched a
     ///     Sight survey, and the survey path Returns at High priority and picks a new FATE.
     ///     Runs every tick; cheap, and a no-op once a farm is latched or the buff is gone.
-    ///     The buff does not say which pot it came from, so use the nearest pot FATE spot.
+    ///     The buff does not say which pot it came from — see
+    ///     <see cref="ResolvePotFateForActiveBuff"/>.
     /// </summary>
     private void EnsurePotChestFarmForBuff()
     {
@@ -228,23 +230,21 @@ public class Automator
         }
 
         IZone zone = zones.GetZone();
-        ActivityData? nearest = zone.GetPotFateData()
-            .OrderBy(fate => Vector3.DistanceSquared(fate.Position, player.Position))
-            .FirstOrDefault();
-        if (nearest == null)
+        ActivityData? source = ResolvePotFateForActiveBuff(zone, player.Position);
+        if (source == null)
         {
             return;
         }
 
         logger.Info(
             "Cache Me If You Can is up — farming pot chests for fate {FateId}",
-            nearest.Id);
-        TryStartPotChestFarm(new FateId((ushort)nearest.Id));
+            source.Id);
+        TryStartPotChestFarm(new FateId((ushort)source.Id));
     }
 
     public void RefreshPathfinding()
     {
-        if (!IsActive || SuspendedForTreasure)
+        if (!IsActive || SuspendedForTreasure || SuspendedForShopping)
         {
             return;
         }
@@ -308,7 +308,7 @@ public class Automator
 
     public void Render()
     {
-        if (!IsActive || SuspendedForTreasure)
+        if (!IsActive || SuspendedForTreasure || SuspendedForShopping)
         {
             return;
         }
@@ -356,9 +356,15 @@ public class Automator
                     TryStartPotChestFarm(fateGoal.id);
                 }
 
+                string goalLabel = goal.Goal.GoalType switch
+                {
+                    FateGoal(var id) => $"FATE {id.Value}",
+                    CriticalEncounterGoal(var id) => $"CE {id.Value}",
+                    _ => goal.Goal.Describe(),
+                };
                 logger.Debug(
                     "Goal no longer valid ({Goal}) — aborting pathfinding",
-                    DescribeGoal(goal.Goal));
+                    goalLabel);
                 memory.Forget<GoalMemory>();
                 IllegalModeActivityWork.ForgetTravelLatches(memory);
                 SoftStopPathfinding();
@@ -367,6 +373,7 @@ public class Automator
                      && !memory.TryRemember<WaitingForCriticalEncounterMemory>(out WaitingForCriticalEncounterMemory _)
                      && !memory.TryRemember<WaitingForPotFateMemory>(out WaitingForPotFateMemory _)
                      && !memory.TryRemember<SuspendTravelForActivityMemory>(out SuspendTravelForActivityMemory _)
+                     && !memory.TryRemember<CommittedCriticalEncounterMemory>(out CommittedCriticalEncounterMemory _)
                      && !memory.TryRemember<ApplyingBuffsMemory>(out ApplyingBuffsMemory _))
             {
                 memory.TryAdd(new GoalPathStepMemory(goal.Goal, calculator, automatorConfig.StopAfterReturn));
@@ -395,6 +402,7 @@ public class Automator
     private void StopAutomation()
     {
         SuspendedForTreasure = false;
+        SuspendedForShopping = false;
         memory.Wipe();
         manager.CancelAll();
         AethernetTeleport.AbortIfBusy(lifestream);
@@ -504,6 +512,66 @@ public class Automator
     }
 
     /// <summary>
+    ///     Cache Me does not name the pot it came from. Nearest FATE centre is wrong after a
+    ///     manual elixir — you are often standing on a distant chest, closer to the other pot.
+    /// </summary>
+    private ActivityData? ResolvePotFateForActiveBuff(IZone zone, Vector3 playerPos)
+    {
+        List<ActivityData> pots = zone.GetPotFateData();
+        if (pots.Count == 0)
+        {
+            return null;
+        }
+
+        Fate? live = fates.Snapshot().FirstOrDefault(f => zone.IsPotFate(f.Id.Value));
+        if (live != null)
+        {
+            return pots.FirstOrDefault(p => p.Id == live.Id.Value);
+        }
+
+        PotCycleSnapshot cycle = potCycle.Snapshot;
+        if (cycle.HasKnownAnchor
+            && cycle.CurrentActivePotFateId == 0
+            && cycle.AnchorPotFateId != 0
+            && DateTimeOffset.UtcNow - cycle.AnchorSpawnAt < TimeSpan.FromMinutes(12))
+        {
+            ActivityData? anchored = pots.FirstOrDefault(p => p.Id == cycle.AnchorPotFateId);
+            if (anchored != null)
+            {
+                return anchored;
+            }
+        }
+
+        int? bestFate = null;
+        float bestDist = float.MaxValue;
+        foreach (KeyValuePair<int, List<PotChestData>> group in zone.GetPotChestData())
+        {
+            foreach (PotChestData chest in group.Value)
+            {
+                float dist = playerPos.Distance2D(chest.Position);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    bestFate = group.Key;
+                }
+            }
+        }
+
+        if (bestFate is int fateId)
+        {
+            ActivityData? byPad = pots.FirstOrDefault(p => p.Id == fateId);
+            if (byPad != null)
+            {
+                return byPad;
+            }
+        }
+
+        return pots
+            .OrderBy(p => Vector3.DistanceSquared(p.Position, playerPos))
+            .FirstOrDefault();
+    }
+
+    /// <summary>
     /// Drop next-goal / Return travel so FarmingPotChests can open reveals.
     /// Otherwise Choosing during Pending + Pathfinding (High) preempts the farm.
     /// </summary>
@@ -515,12 +583,4 @@ public class Automator
         SoftStopPathfinding();
         memory.TryAdd(farm);
     }
-
-    private static string DescribeGoal(IGoal goal) =>
-        goal.GoalType switch
-        {
-            FateGoal(var id) => $"FATE {id.Value}",
-            CriticalEncounterGoal(var id) => $"CE {id.Value}",
-            var _ => goal.Describe()
-        };
 }

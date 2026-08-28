@@ -1,11 +1,11 @@
+import {
+  CATALOG_CACHE_TTL_SECONDS,
+  invalidateAcceptedCatalogCaches,
+  readCatalogCache,
+  writeCatalogCache,
+} from "./catalogCache";
 import { processPendingCarrotObservations } from "./carrotProcessor";
 import { processPendingObservations } from "./processor";
-
-export interface Env {
-  DB: D1Database;
-  OBSERVATION_IP_LIMITER: RateLimit;
-  ADMIN_TOKEN?: string;
-}
 
 interface CofferObservationRequest {
   territoryId: number;
@@ -58,8 +58,9 @@ const CARROT_OBJECT_BASE_ID = 2010139;
 const POT_CYCLE_MAX_AGE_SECONDS = 45 * 60;
 /** Drop pot_cycles older than this (seconds). Must exceed GET max age. */
 const POT_CYCLE_RETAIN_SECONDS = 2 * 60 * 60;
-/** Cap delete batch so cleanup does not burn the whole free-tier write budget. */
-const POT_CYCLE_PRUNE_BATCH = 2000;
+/** Paid D1: prune in large batches until caught up (was capped for free-tier write budget). */
+const POT_CYCLE_PRUNE_BATCH = 25_000;
+const POT_CYCLE_PRUNE_MAX_ROUNDS = 20;
 
 function jsonResponse(body: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response {
   return Response.json(body, {
@@ -71,18 +72,30 @@ function jsonResponse(body: unknown, status = 200, extraHeaders: Record<string, 
   });
 }
 
-async function enforceObservationRateLimit(request: Request, env: Env): Promise<Response | null> {
+async function enforceRateLimit(
+  request: Request,
+  limiter: RateLimit,
+  errorMessage = "Rate limit exceeded.",
+): Promise<Response | null> {
   const key = request.headers.get("CF-Connecting-IP") ?? "local-development";
-  const result = await env.OBSERVATION_IP_LIMITER.limit({ key });
+  const result = await limiter.limit({ key });
   if (result.success) {
     return null;
   }
 
   return jsonResponse(
-    { accepted: false, error: "Rate limit exceeded." },
+    { accepted: false, found: false, error: errorMessage },
     429,
     { "Retry-After": "60" },
   );
+}
+
+async function enforceObservationRateLimit(request: Request, env: Env): Promise<Response | null> {
+  return enforceRateLimit(request, env.OBSERVATION_IP_LIMITER);
+}
+
+async function enforcePotCycleRateLimit(request: Request, env: Env): Promise<Response | null> {
+  return enforceRateLimit(request, env.POT_CYCLE_IP_LIMITER);
 }
 
 function authorizeAdmin(request: Request, env: Env): Response | null {
@@ -326,8 +339,18 @@ async function exportAcceptedCandidates(request: Request, env: Env): Promise<Res
 /** Public plugin catalog — accepted candidates only (no admin token). */
 async function listAcceptedCandidatesPublic(request: Request, env: Env): Promise<Response> {
   try {
+    const url = new URL(request.url);
+    const cached = await readCatalogCache("coffers", url);
+    if (cached !== undefined) {
+      return cached;
+    }
+
     const payload = await buildAcceptedCandidatesPayload(request, env);
-    return jsonResponse(payload, 200, { "Cache-Control": "public, max-age=60" });
+    const response = jsonResponse(payload, 200, {
+      "Cache-Control": `public, max-age=${CATALOG_CACHE_TTL_SECONDS}`,
+    });
+    await writeCatalogCache("coffers", url, response);
+    return response;
   } catch (error) {
     if (error instanceof Response) {
       return error;
@@ -516,8 +539,18 @@ async function exportAcceptedCarrotLocations(request: Request, env: Env): Promis
 
 async function listAcceptedCarrotLocationsPublic(request: Request, env: Env): Promise<Response> {
   try {
+    const url = new URL(request.url);
+    const cached = await readCatalogCache("carrots", url);
+    if (cached !== undefined) {
+      return cached;
+    }
+
     const payload = await buildAcceptedCarrotLocationsPayload(request, env);
-    return jsonResponse(payload, 200, { "Cache-Control": "public, max-age=60" });
+    const response = jsonResponse(payload, 200, {
+      "Cache-Control": `public, max-age=${CATALOG_CACHE_TTL_SECONDS}`,
+    });
+    await writeCatalogCache("carrots", url, response);
+    return response;
   } catch (error) {
     if (error instanceof Response) {
       return error;
@@ -570,6 +603,7 @@ async function reviewCarrotCandidate(request: Request, candidateId: number, env:
     candidateId,
   ).run();
 
+  await invalidateAcceptedCatalogCaches();
   return getCarrotCandidateDetail(candidateId, env);
 }
 
@@ -616,6 +650,7 @@ async function reviewCandidate(request: Request, candidateId: number, env: Env):
     candidateId,
   ).run();
 
+  await invalidateAcceptedCatalogCaches();
   return getCandidateDetail(candidateId, env);
 }
 
@@ -916,18 +951,11 @@ async function submitPotCycle(request: Request, env: Env): Promise<Response> {
   const instanceKey = pot.instanceKey.trim().toUpperCase();
 
   const result = await env.DB.prepare(`
-    INSERT INTO pot_cycles (
+    INSERT OR IGNORE INTO pot_cycles (
       instance_key, territory_id, datacenter_id, pot_fate_id, spawn_at_unix,
       installation_hash, plugin_version, observed_at_utc
     )
-    SELECT ?, ?, ?, ?, ?, ?, ?, ?
-    WHERE NOT EXISTS (
-      SELECT 1
-      FROM pot_cycles
-      WHERE instance_key = ?
-        AND pot_fate_id = ?
-        AND spawn_at_unix = ?
-    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     instanceKey,
     pot.territoryId,
@@ -937,9 +965,6 @@ async function submitPotCycle(request: Request, env: Env): Promise<Response> {
     pot.installationHash.trim(),
     pot.pluginVersion.trim(),
     observedAtUtc,
-    instanceKey,
-    pot.potFateId,
-    pot.spawnAtUnix,
   ).run();
 
   if (!result.success) {
@@ -1221,8 +1246,11 @@ export default {
 
         const response = await submitObservation(request, env);
         // Cluster / auto-accept promptly so the public catalog does not wait on cron alone.
-        ctx.waitUntil(processPendingObservations(env).then(result => {
+        ctx.waitUntil(processPendingObservations(env).then(async result => {
           console.log("Observation processor (post-submit)", result);
+          if (result.assigned > 0) {
+            await invalidateAcceptedCatalogCaches();
+          }
         }));
         return response;
       } catch (error) {
@@ -1243,8 +1271,11 @@ export default {
         }
 
         const response = await submitCarrotLocation(request, env);
-        ctx.waitUntil(processPendingCarrotObservations(env).then(result => {
+        ctx.waitUntil(processPendingCarrotObservations(env).then(async result => {
           console.log("Carrot processor (post-submit)", result);
+          if (result.assigned > 0) {
+            await invalidateAcceptedCatalogCaches();
+          }
         }));
         return response;
       } catch (error) {
@@ -1259,7 +1290,7 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/api/v1/pot-cycles") {
       try {
-        const rateLimitResponse = await enforceObservationRateLimit(request, env);
+        const rateLimitResponse = await enforcePotCycleRateLimit(request, env);
         if (rateLimitResponse !== null) {
           return rateLimitResponse;
         }
@@ -1277,6 +1308,11 @@ export default {
 
     if (request.method === "GET" && url.pathname === "/api/v1/pot-cycles") {
       try {
+        const rateLimitResponse = await enforcePotCycleRateLimit(request, env);
+        if (rateLimitResponse !== null) {
+          return rateLimitResponse;
+        }
+
         return await getPotCycle(request, env);
       } catch (error) {
         if (error instanceof Response) {
@@ -1296,24 +1332,39 @@ export default {
     console.log("Observation processor completed", cofferResult);
     const carrotResult = await processPendingCarrotObservations(env);
     console.log("Carrot processor completed", carrotResult);
+    if (cofferResult.assigned > 0 || carrotResult.assigned > 0) {
+      await invalidateAcceptedCatalogCaches();
+    }
+
     const pruned = await pruneStalePotCycles(env);
     console.log("Pot cycle prune completed", pruned);
   },
 } satisfies ExportedHandler<Env>;
 
-/** Free-tier D1 is 100k writes/day — pot_cycles was inserting 100k+ rows/day alone. */
-async function pruneStalePotCycles(env: Env): Promise<{ deleted: number }> {
+/** Paid D1: delete stale pot_cycles in large rounds until caught up. */
+async function pruneStalePotCycles(env: Env): Promise<{ deleted: number; rounds: number }> {
   const cutoffUnix = Math.floor(Date.now() / 1000) - POT_CYCLE_RETAIN_SECONDS;
-  const result = await env.DB.prepare(`
-    DELETE FROM pot_cycles
-    WHERE id IN (
-      SELECT id
-      FROM pot_cycles
-      WHERE spawn_at_unix < ?
-      ORDER BY id
-      LIMIT ?
-    )
-  `).bind(cutoffUnix, POT_CYCLE_PRUNE_BATCH).run();
+  let deleted = 0;
+  let rounds = 0;
+  for (; rounds < POT_CYCLE_PRUNE_MAX_ROUNDS; rounds++) {
+    const result = await env.DB.prepare(`
+      DELETE FROM pot_cycles
+      WHERE id IN (
+        SELECT id
+        FROM pot_cycles
+        WHERE spawn_at_unix < ?
+        ORDER BY id
+        LIMIT ?
+      )
+    `).bind(cutoffUnix, POT_CYCLE_PRUNE_BATCH).run();
 
-  return { deleted: result.meta.changes ?? 0 };
+    const changes = result.meta.changes ?? 0;
+    deleted += changes;
+    if (changes < POT_CYCLE_PRUNE_BATCH) {
+      rounds++;
+      break;
+    }
+  }
+
+  return { deleted, rounds };
 }

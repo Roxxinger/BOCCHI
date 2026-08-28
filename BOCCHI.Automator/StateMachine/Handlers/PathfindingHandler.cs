@@ -164,13 +164,15 @@ public class PathfindingHandler
             // Remount mid-route if Treasure Sight (or anything else) left us on foot.
             if (path.GetNextPathStep()?.PathStepData is Pathfind(var destination, _))
             {
+                IZone zone = zones.GetZone();
                 MountWait.TryCastIfNeeded(
                     conditions,
                     objects,
                     destination,
                     movement.ShouldAutoMount,
                     movement.PreferredMountId,
-                    zones.GetZone().IsInBasecamp());
+                    zone.IsInBasecamp(),
+                    zone);
             }
 
             if (currentPathTask.IsCompleted)
@@ -246,11 +248,19 @@ public class PathfindingHandler
                 return;
             }
 
-            if (step.PathStepData is Teleport
-                && zones.GetZone().IsInBasecamp()
-                && !WaitForBaseTeleportDelay())
+            if (step.PathStepData is Teleport)
             {
-                return;
+                // Return was handed off — wait until it finishes. Otherwise Teleport walks to
+                // the nearest shard and Lifestream opens short of camp.
+                if (memory.TryRemember<ReturningStateMemory>(out ReturningStateMemory _))
+                {
+                    return;
+                }
+
+                if (zones.GetZone().IsInBasecamp() && !WaitForBaseTeleportDelay())
+                {
+                    return;
+                }
             }
 
             logger.Debug("Starting next task step...");

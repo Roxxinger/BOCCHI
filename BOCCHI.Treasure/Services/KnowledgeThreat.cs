@@ -1,5 +1,6 @@
 using System.Numerics;
 using BOCCHI.Common.Data.Mobs;
+using BOCCHI.Common.Services;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
 using ECommons.GameFunctions;
@@ -51,12 +52,18 @@ public static class KnowledgeThreat
             }
         }
 
+        // Inside Occult Crescent, ForayInfo.Level follows zone sync (South Horn) — using it
+        // makes Hide fire on mobs that will not aggro your real Knowledge (#197).
+        if (OccultCrescentHelper.IsStateAvailable())
+        {
+            return null;
+        }
+
         if (objects.LocalPlayer is not { } player)
         {
             return null;
         }
 
-        // Outside content / state not loaded — character foray level (synced while in South Horn).
         byte level = ((BattleChara*)player.Address)->ForayInfo.Level;
         return level > 0 ? level : null;
     }

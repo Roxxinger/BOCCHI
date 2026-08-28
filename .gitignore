@@ -6,6 +6,7 @@ BOCCHI/.env
 node_modules/
 BOCCHI*/obj
 BOCCHI*/bin
+.cursor/
 
 # Legacy monolith code superseded by BOCCHI.* projects on rewrite
 /BOCCHI/Modules/

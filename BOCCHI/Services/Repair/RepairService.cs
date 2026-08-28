@@ -1,12 +1,20 @@
 ﻿using BOCCHI.Common.Config;
 using BOCCHI.Common.Services;
 using BOCCHI.Common.Steps;
+using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Ocelot.Chain;
+using Ocelot.Services.PlayerState;
 
 namespace BOCCHI.Services.Repair;
 
-public class RepairService(IChainFactory chains, AutomatorConfig config) : IRepairService
+public class RepairService(
+    IChainFactory chains,
+    AutomatorConfig config,
+    IObjectTable objects,
+    IDataManager data,
+    IPlayer player
+) : IRepairService
 {
     public unsafe bool ShouldRepair()
     {
@@ -15,7 +23,7 @@ public class RepairService(IChainFactory chains, AutomatorConfig config) : IRepa
             return false;
         }
 
-        for(int i = 0; i < equipped->Size; i++)
+        for (int i = 0; i < equipped->Size; i++)
         {
             InventoryItem* item = equipped->GetInventorySlot(i);
             if (item is null)
@@ -35,11 +43,35 @@ public class RepairService(IChainFactory chains, AutomatorConfig config) : IRepa
     public IChain Repair()
     {
         IChain chain = chains.Create("Repairs");
-
         chain.Then<UnmountStep>();
-        chain.Then<RepairStep>();
+
+        if (ShouldUseMender())
+        {
+            chain.Then<NpcRepairStep>();
+        }
+        else
+        {
+            chain.Then<RepairStep>();
+        }
 
         return chain;
+    }
+
+    private bool ShouldUseMender()
+    {
+        bool menderNearby = RepairNpc.TryFindNearby(
+            objects,
+            data,
+            player.Position,
+            out _,
+            out _);
+
+        return config.AutoRepairMethod switch
+        {
+            AutoRepairMethod.MenderNpc => true,
+            AutoRepairMethod.PreferMender => menderNearby,
+            _ => false,
+        };
     }
 
     private static unsafe bool TryGetEquipped(out InventoryContainer* equipped)

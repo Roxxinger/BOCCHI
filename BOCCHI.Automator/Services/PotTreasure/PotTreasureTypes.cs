@@ -44,6 +44,12 @@ public sealed class PotTreasureHintEvent
     public PotTreasureDistanceBucket Distance { get; init; }
 
     public int Revision { get; set; }
+
+    /// <summary>
+    ///     Player position when the log line arrived. Prefer <c>ElixirHintOrigin</c> on the farm
+    ///     (where Magical Elixir was used) — the log can land mid-walk if travel was already started.
+    /// </summary>
+    public Vector3? Origin { get; init; }
 }
 
 public static class PotTreasureIds

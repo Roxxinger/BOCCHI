@@ -1,11 +1,11 @@
 using BOCCHI.Common.Config;
+using BOCCHI.Common.UI;
 using BOCCHI.Treasure.Hunt;
 using BOCCHI.Treasure.Services;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using Ocelot.Windows;
 
 namespace BOCCHI.Treasure;
@@ -44,7 +44,6 @@ public static class TreasureHuntStatusUi
 
     public static void DrawProgress(
         ITreasureHunter hunter,
-        IUIService ui,
         ITranslator<MainWindow> translator,
         TreasureConfig? config = null)
     {
@@ -55,7 +54,10 @@ public static class TreasureHuntStatusUi
 
         if (hunter.WaitingForSafeWindow)
         {
-            ImGui.TextWrapped(translator.T(".treasure.waiting_safe_window_detail"));
+            BocchiUi.DrawStatusChip(
+                translator.T(".treasure.waiting_safe_window"),
+                BocchiUi.StatusChipKind.Warn);
+            BocchiUi.MutedWrapped(translator.T(".treasure.waiting_safe_window_detail"));
             return;
         }
 
@@ -65,16 +67,49 @@ public static class TreasureHuntStatusUi
             return;
         }
 
-        ui.LabelledValue(translator.T(".treasure.progress"), FormatProgress(hunter, translator));
+        string progress = FormatProgress(hunter, translator);
+        if (total > 0)
+        {
+            int current = hunter.CheckedCofferCount;
+            if (hunter.GetCurrentStep()?.Type == HuntPathfinderStepType.WalkToNode)
+            {
+                current = Math.Min(current + 1, total);
+            }
+
+            float fraction = total > 0 ? current / (float)total : 0f;
+            ImGui.TextColored(BocchiUi.Header, translator.T(".treasure.progress"));
+            ImGui.SameLine(0f, 8f);
+            if (hunter.Paused)
+            {
+                BocchiUi.DrawStatusChip(translator.T(".treasure.paused"), BocchiUi.StatusChipKind.Warn);
+                ImGui.SameLine(0f, 8f);
+            }
+
+            // Count only on the bar — Paused is the chip.
+            BocchiUi.DrawPercentBar(
+                fraction,
+                Math.Min(220f, ImGui.GetContentRegionAvail().X),
+                $"{current}/{total}");
+        }
+        else if (!string.IsNullOrEmpty(progress))
+        {
+            ImGui.TextColored(BocchiUi.Header, translator.T(".treasure.progress"));
+            ImGui.SameLine(0f, 8f);
+            BocchiUi.MutedText(progress);
+        }
 
         if (hunter.LastCheckedNodeId is { } lastId)
         {
-            ui.LabelledValue(translator.T(".treasure.last_checked"), lastId.ToString());
+            ImGui.TextColored(BocchiUi.Header, translator.T(".treasure.last_checked"));
+            ImGui.SameLine(0f, 8f);
+            BocchiUi.MutedText(lastId.ToString());
         }
 
         if (hunter.TryGetResumeCoffer(out uint resumeId, out _))
         {
-            ui.LabelledValue(translator.T(".treasure.resume_coffer"), resumeId.ToString());
+            ImGui.TextColored(BocchiUi.Header, translator.T(".treasure.resume_coffer"));
+            ImGui.SameLine(0f, 8f);
+            BocchiUi.MutedText(resumeId.ToString());
             ImGui.SameLine(0f, 8f);
             using (ImRaii.PushFont(UiBuilder.IconFont))
             {
@@ -104,12 +139,12 @@ public static class TreasureHuntStatusUi
             }
         }
 
-        HuntPathfinderStep? current = hunter.GetCurrentStep();
-        if (config != null && current?.Type == HuntPathfinderStepType.WalkToNode)
+        HuntPathfinderStep? currentStep = hunter.GetCurrentStep();
+        if (config != null && currentStep?.Type == HuntPathfinderStepType.WalkToNode)
         {
-            ui.LabelledValue(
-                translator.T(".treasure.distance_to_chest"),
-                $"{hunter.StepDistance:F2}");
+            ImGui.TextColored(BocchiUi.Header, translator.T(".treasure.distance_to_chest"));
+            ImGui.SameLine(0f, 8f);
+            BocchiUi.MutedText($"{hunter.StepDistance:F2}");
         }
     }
 }

@@ -1,5 +1,6 @@
 using BOCCHI.Common.Config.Fields;
 using BOCCHI.Common.Data.MobFarmer;
+using BOCCHI.Common.UI;
 using Dalamud.Bindings.ImGui;
 using Ocelot.Config.Renderers;
 using Ocelot.Extensions;
@@ -28,44 +29,52 @@ public sealed class FarmSpotListRenderer(IPlayer player) : IFieldRenderer<FarmSp
         }
 
         string fieldKey = prop.GetFieldLabelKey(owner);
-        ImGui.TextUnformatted(translator.T(fieldKey));
+        BocchiUi.SectionTitle(translator.T(fieldKey));
         prop.Tooltip(owner, translator);
 
         bool changed = false;
-        if (spots.Count == 0)
+        BocchiUi.PushFieldStyle();
+        try
         {
-            ImGui.TextWrapped(T(translator, fieldKey, "empty"));
-        }
-
-        for (int i = 0; i < spots.Count; i++)
-        {
-            FarmSpot spot = spots[i];
-            ImGui.PushID(i);
-            if (ImGui.CollapsingHeader($"{spot.Name}##spot{i}"))
+            if (spots.Count == 0)
             {
-                changed |= DrawSpot(spot, translator, fieldKey);
-                if (ImGui.Button(T(translator, fieldKey, "remove")))
-                {
-                    spots.RemoveAt(i);
-                    changed = true;
-                    ImGui.PopID();
-                    break;
-                }
+                BocchiUi.MutedText(T(translator, fieldKey, "empty"));
             }
 
-            ImGui.PopID();
-        }
-
-        if (ImGui.Button(T(translator, fieldKey, "add")))
-        {
-            FarmSpot spot = new()
+            for (int i = 0; i < spots.Count; i++)
             {
-                Name = $"Spot {spots.Count + 1}",
-                Priority = spots.Count == 0 ? 0 : spots.Max(s => s.Priority) + 1,
-            };
-            spot.SetOrigin(player.Position);
-            spots.Add(spot);
-            changed = true;
+                FarmSpot spot = spots[i];
+                ImGui.PushID(i);
+                if (ImGui.CollapsingHeader($"{spot.Name}##spot{i}"))
+                {
+                    changed |= DrawSpot(spot, translator, fieldKey);
+                    if (ImGui.Button(T(translator, fieldKey, "remove")))
+                    {
+                        spots.RemoveAt(i);
+                        changed = true;
+                        ImGui.PopID();
+                        break;
+                    }
+                }
+
+                ImGui.PopID();
+            }
+
+            if (ImGui.Button(T(translator, fieldKey, "add")))
+            {
+                FarmSpot spot = new()
+                {
+                    Name = $"Spot {spots.Count + 1}",
+                    Priority = spots.Count == 0 ? 0 : spots.Max(s => s.Priority) + 1,
+                };
+                spot.SetOrigin(player.Position);
+                spots.Add(spot);
+                changed = true;
+            }
+        }
+        finally
+        {
+            BocchiUi.PopFieldStyle();
         }
 
         if (changed)
@@ -100,7 +109,7 @@ public sealed class FarmSpotListRenderer(IPlayer player) : IFieldRenderer<FarmSp
             changed = true;
         }
 
-        ImGui.TextUnformatted($"{T(translator, fieldKey, "origin")}: {Format(spot.Origin)}");
+        BocchiUi.MutedText($"{T(translator, fieldKey, "origin")}: {Format(spot.Origin)}");
         if (ImGui.Button(T(translator, fieldKey, "set_origin")))
         {
             spot.SetOrigin(player.Position);
@@ -121,7 +130,7 @@ public sealed class FarmSpotListRenderer(IPlayer player) : IFieldRenderer<FarmSp
 
         if (spot.UseStackPoint)
         {
-            ImGui.TextUnformatted($"{T(translator, fieldKey, "stack")}: {Format(spot.StackPoint ?? Vector3.Zero)}");
+            BocchiUi.MutedText($"{T(translator, fieldKey, "stack")}: {Format(spot.StackPoint ?? Vector3.Zero)}");
             if (ImGui.Button(T(translator, fieldKey, "set_stack")))
             {
                 spot.SetStackPoint(player.Position);

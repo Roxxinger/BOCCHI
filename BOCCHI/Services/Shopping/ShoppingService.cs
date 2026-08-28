@@ -3,6 +3,8 @@ using BOCCHI.Common.Config;
 using BOCCHI.Common.Data.Aethernet;
 using BOCCHI.Common.Data.OccultCrescent;
 using BOCCHI.Common.Data.Shopping;
+using BOCCHI.Common.Data.StateMemory;
+using BOCCHI.Common.Data.SupportJobs;
 using BOCCHI.Common.Data.Zones;
 using BOCCHI.Automator.Services;
 using BOCCHI.Common.Services;

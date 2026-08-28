@@ -5,8 +5,8 @@ using BOCCHI.Common.Data.Fates;
 using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Services;
 using BOCCHI.Common.UI;
+using Dalamud.Bindings.ImGui;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using Ocelot.Windows;
 
 namespace BOCCHI.Fates;
@@ -19,8 +19,6 @@ public class FatesRenderer
     IZoneProvider zones,
     UIConfig uiConfig,
     EventDropIconRenderer eventDrops,
-    IBrandingService branding,
-    IUIService ui,
     ITranslator<MainWindow> translator
 ) : IDynamicRenderer
 {
@@ -33,7 +31,7 @@ public class FatesRenderer
         List<Fate> snapshots = fates.Snapshot().ToList();
         if (snapshots.Count == 0)
         {
-            ui.Text(translator.T(".world.fates.none"));
+            BocchiUi.MutedText(translator.T(".world.fates.none"));
             return;
         }
 
@@ -56,14 +54,19 @@ public class FatesRenderer
                 $"Score {score:F1} · {fate.State} {fate.Progress}% · #{fate.Id.Value} · {fate.Position:f0} · r{fate.Radius}";
 
             ActivitySnapshotRenderer.RenderCompactWithActions(
-                ui,
                 navigation,
-                branding.DalamudYellow,
-                branding.DalamudGrey,
                 fate.Name,
                 details,
                 fate.Position,
                 $"fate_{fate.Id.Value}");
+
+            if (fate.Progress is > 0 and < 100)
+            {
+                BocchiUi.DrawPercentBar(
+                    fate.Progress / 100f,
+                    Math.Min(180f, ImGui.GetContentRegionAvail().X),
+                    $"{fate.Progress}%");
+            }
 
             if (FieldNoteTargets.TryGetDropsForFate(zoneId, fate.Id.Value, out EventDropInfo drops))
             {

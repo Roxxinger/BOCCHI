@@ -16,14 +16,25 @@ public static class MountWait
 
     private static readonly TimeSpan TryCastInterval = TimeSpan.FromMilliseconds(750);
 
+    /// <summary>
+    ///     Skip auto-mount near camp only when the route still ends by the crystal.
+    ///     Longer FATE/CE legs (e.g. Company of Stone) should mount before leaving camp.
+    /// </summary>
+    public static bool ShouldSuppressMountNearCamp(IZone zone, Vector3 destination) =>
+        destination.Distance2D(zone.GetAetherytePosition())
+        <= NavigationConstants.CampRadius + NavigationConstants.MountMinDistance;
+
     private static bool ShouldSkip(
         ICondition conditions,
         IObjectTable objects,
         Vector3 destination,
         bool autoMountEnabled = true,
-        bool inBaseCamp = false)
+        bool inBaseCamp = false,
+        IZone? zone = null)
     {
-        if (!autoMountEnabled || inBaseCamp)
+        bool suppressForCamp = inBaseCamp
+                               && (zone == null || ShouldSuppressMountNearCamp(zone, destination));
+        if (!autoMountEnabled || suppressForCamp)
         {
             return true;
         }
@@ -88,16 +99,16 @@ public static class MountWait
         }
     }
 
-    /// <summary>Cast mount while pathing if far enough, not in base camp, and not already mounted.</summary>
     public static void TryCastIfNeeded(
         ICondition conditions,
         IObjectTable objects,
         Vector3 destination,
         bool autoMountEnabled = true,
         uint preferredMountId = 0,
-        bool inBaseCamp = false)
+        bool inBaseCamp = false,
+        IZone? zone = null)
     {
-        if (ShouldSkip(conditions, objects, destination, autoMountEnabled, inBaseCamp))
+        if (ShouldSkip(conditions, objects, destination, autoMountEnabled, inBaseCamp, zone))
         {
             return;
         }

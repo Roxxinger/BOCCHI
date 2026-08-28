@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Text.RegularExpressions;
 using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Services;
@@ -30,6 +31,7 @@ public class TreasureTracker : ITreasureTracker, IOnUpdate, IDisposable
     private readonly TimeSpan parseWideTextCooldown = TimeSpan.FromSeconds(5);
     private readonly IPlayer player;
     private readonly IZoneProvider zones;
+    private readonly CofferLocationSyncService cofferLocations;
 
     private DateTime lastParseWideText = DateTime.MinValue;
     private List<TreasureCoffer> treasures = [];
@@ -40,7 +42,8 @@ public class TreasureTracker : ITreasureTracker, IOnUpdate, IDisposable
         IChatGui chat,
         IDataManager data,
         IZoneProvider zones,
-        IPlayer player
+        IPlayer player,
+        CofferLocationSyncService cofferLocations
     )
     {
         this.objects = objects;
@@ -49,6 +52,7 @@ public class TreasureTracker : ITreasureTracker, IOnUpdate, IDisposable
         this.data = data;
         this.zones = zones;
         this.player = player;
+        this.cofferLocations = cofferLocations;
         addonLifecycle.RegisterListener(AddonEvent.PostDraw, "_WideText", OnWideTextPostDraw);
         // Chat is more reliable than scraping _WideText (empty first frames / cooldown misses).
         chat.LogMessage += OnChatLogMessage;
@@ -114,11 +118,23 @@ public class TreasureTracker : ITreasureTracker, IOnUpdate, IDisposable
                 continue;
             }
 
-            if (treasure.GetCofferType() == CofferType.Bronze)
+            CofferType cofferType = treasure.GetCofferType();
+            if (cofferType is CofferType.Bronze or CofferType.Silver)
+            {
+                Vector3 position = treasure.GetPosition();
+                cofferLocations.Submit(
+                    treasure.Id,
+                    position.X,
+                    position.Y,
+                    position.Z,
+                    cofferType.ToString());
+            }
+
+            if (cofferType == CofferType.Bronze)
             {
                 BronzeChests = Math.Max(0, BronzeChests - 1);
             }
-            else if (treasure.GetCofferType() == CofferType.Silver)
+            else if (cofferType == CofferType.Silver)
             {
                 SilverChests = Math.Max(0, SilverChests - 1);
             }

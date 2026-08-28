@@ -1,3 +1,3 @@
 {
-  "help": "デバッグ用です。/bocchi debug ai-preset — BOCCHI AI の BossMod プリセットが無ければ作成し、保存された JSON を表示します。"
+  "help": "デバッグ用です。/bocchi debug ce [id] — CE の移動・待機判定（止まった場所で実行）。/bocchi debug pos — 経路用座標をコピー。/bocchi debug ai-preset — BOCCHI AI の BossMod プリセットが無ければ作成。"
 }

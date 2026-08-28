@@ -8,31 +8,26 @@
   "fields": {
     "should_automate_buffs": {
       "label": "Automate buffs",
-      "tooltip": "In Illegal Mode, keep the buffs below refreshed at knowledge crystals."
+      "tooltip": "On: refresh selected buffs at knowledge crystals during Illegal Mode, and when Mob Farmer pauses for crystal buffs.\nOff: no automatic buff refresh."
     },
     "apply_romeos_ballad": {
-      "label": "Romeo's Ballad",
-      "tooltip": "Keep Romeo's Ballad up when buff automation is on."
+      "label": "Romeo's Ballad"
     },
     "apply_enduring_fortitude": {
-      "label": "Enduring Fortitude",
-      "tooltip": "Keep Enduring Fortitude up when buff automation is on."
+      "label": "Enduring Fortitude"
     },
     "apply_fleetfooted": {
-      "label": "Fleetfooted",
-      "tooltip": "Keep Fleetfooted up when buff automation is on."
+      "label": "Fleetfooted"
     },
     "apply_quicker_step": {
-      "label": "Quicker Step",
-      "tooltip": "Keep Quicker Step up when buff automation is on."
+      "label": "Quicker Step"
     },
     "apply_buffs_using_inquiring_mind": {
       "label": "Use Inquiring Mind when you can",
       "tooltip": "Near a knowledge crystal, Freelancer can apply all selected unlocked buffs at once."
     },
     "reapply_threshold": {
-      "label": "Refresh when under (minutes left)",
-      "tooltip": "Recast a buff when this many minutes or fewer remain."
+      "label": "Refresh when under (minutes left)"
     }
   }
 }

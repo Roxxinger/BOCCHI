@@ -87,8 +87,8 @@ public class CurrencyTracker(IZoneProvider zones, IChatGui chat)
             return;
         }
 
-        int gold = GetCurrentGold();
-        int silver = GetCurrentSilver();
+        int gold = OccultCrescentHelper.GetGoldTotal();
+        int silver = OccultCrescentHelper.GetSilverTotal();
 
         // Inventory can read 0 while bags are still loading — don't treat that as a spend.
         if ((gold == 0 && goldTracker.HasValue && goldTracker.LastValue > 0)
@@ -124,8 +124,4 @@ public class CurrencyTracker(IZoneProvider zones, IChatGui chat)
         goldTracker.Reset();
         silverTracker.Reset();
     }
-
-    private static int GetCurrentGold() => OccultCrescentHelper.GetGoldTotal();
-
-    private static int GetCurrentSilver() => OccultCrescentHelper.GetSilverTotal();
 }

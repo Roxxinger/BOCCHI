@@ -1,10 +1,10 @@
 using BOCCHI.Common;
 using BOCCHI.Common.Config;
+using BOCCHI.Common.UI;
 using BOCCHI.MobFarmer.Services;
 using Dalamud.Bindings.ImGui;
 using Ocelot.Extensions;
 using Ocelot.Services.Translation;
-using Ocelot.Services.UI;
 using Ocelot.Windows;
 
 namespace BOCCHI.MobFarmer;
@@ -15,7 +15,6 @@ public class MobFarmerRenderer
     IMobScanner scanner,
     MobFarmerConfig config,
     UIConfig uiConfig,
-    IUIService ui,
     ITranslator<MainWindow> translator
 ) : IDynamicRenderer
 {
@@ -34,22 +33,16 @@ public class MobFarmerRenderer
             Farmer.Toggle();
         }
 
-        ui.LabelledValue(translator.T(".automation.mob_farmer.not_engaged"), scanner.NotInCombat.Count());
-        ui.LabelledValue(translator.T(".automation.mob_farmer.engaged"), scanner.InCombat.Count());
-        ui.LabelledValue(translator.T(".automation.mob_farmer.selected_mobs"), config.Mobs.Count);
+        ImGui.Spacing();
+        BocchiUi.LabelledValue(translator.T(".automation.mob_farmer.not_engaged"), scanner.NotInCombat.Count().ToString());
+        BocchiUi.LabelledValue(translator.T(".automation.mob_farmer.engaged"), scanner.InCombat.Count().ToString());
+        BocchiUi.LabelledValue(translator.T(".automation.mob_farmer.selected_mobs"), config.Mobs.Count.ToString());
         if (Farmer.CurrentSpotName is { } spotName)
         {
-            ui.LabelledValue(translator.T(".automation.mob_farmer.spot"), spotName);
+            BocchiUi.LabelledValue(translator.T(".automation.mob_farmer.spot"), spotName);
         }
 
-        if (Farmer.Suspended)
-        {
-            ui.LabelledValue(
-                translator.T(".automation.mob_farmer.yield"),
-                translator.T($".automation.mob_farmer.yield_reasons.{Farmer.YieldReason.ToString().ToSnakeCase()}"));
-        }
-
-        ImGui.TextUnformatted(translator.T(".automation.mob_farmer.configure_mobs"));
+        BocchiUi.MutedText(translator.T(".automation.mob_farmer.configure_mobs"));
 
         if (Farmer.Running)
         {

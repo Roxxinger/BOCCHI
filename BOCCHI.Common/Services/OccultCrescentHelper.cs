@@ -1,4 +1,5 @@
 using BOCCHI.Common.Data.OccultCrescent;
+using BOCCHI.Common.Data.Zones;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
@@ -22,6 +23,24 @@ public static unsafe class OccultCrescentHelper
     public static int GetSilverPieces() => GetCurrencyCount(OccultCurrencies.SilverPieceItemId);
 
     public static int GetGoldPieces() => GetCurrencyCount(OccultCurrencies.GoldPieceItemId);
+
+    public static int GetSilverObols() => GetCurrencyCount(OccultCurrencies.SilverObolItemId);
+
+    public static int GetGoldObols() => GetCurrencyCount(OccultCurrencies.GoldObolItemId);
+
+    /// <summary>Active horn silver currency (pieces on South, obols on North).</summary>
+    public static int GetActiveSilver(ZoneId zone) =>
+        zone == ZoneId.NorthHorn ? GetSilverObols() : GetSilverPieces();
+
+    /// <summary>Active horn gold currency (pieces on South, obols on North).</summary>
+    public static int GetActiveGold(ZoneId zone) =>
+        zone == ZoneId.NorthHorn ? GetGoldObols() : GetGoldPieces();
+
+    public static int GetCurrencyCount(uint itemId)
+    {
+        InventoryManager* inventory = InventoryManager.Instance();
+        return inventory == null ? 0 : inventory->GetInventoryItemCount(itemId);
+    }
 
     /// <summary>Pieces plus obols — both horns, for per-hour rates.</summary>
     public static int GetSilverTotal() =>
@@ -67,9 +86,4 @@ public static unsafe class OccultCrescentHelper
         return count == 0;
     }
 
-    private static int GetCurrencyCount(uint itemId)
-    {
-        InventoryManager* inventory = InventoryManager.Instance();
-        return inventory == null ? 0 : inventory->GetInventoryItemCount(itemId);
-    }
 }

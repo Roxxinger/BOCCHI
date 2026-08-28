@@ -2,32 +2,21 @@ using BOCCHI.Common.Services;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
-using Ocelot.Graphics;
-using Ocelot.Services.UI;
 using System.Numerics;
 
 namespace BOCCHI.Common.UI;
 
 public static class ActivitySnapshotRenderer
 {
-    public static void RenderCompact(
-        IUIService ui,
-        Color? titleColor,
-        Color? detailColor,
-        string title,
-        string details
-    )
+    public static void RenderCompact(string title, string details)
     {
-        ui.Text(title, titleColor);
+        ImGui.TextColored(BocchiUi.Header, title);
         ImGui.SameLine(0f, 6f);
-        ui.Text(details, detailColor);
+        ImGui.TextColored(BocchiUi.Muted, details);
     }
 
     public static void RenderCompactWithActions(
-        IUIService ui,
         IActivityNavigation navigation,
-        Color? titleColor,
-        Color? detailColor,
         string title,
         string details,
         Vector3 destination,
@@ -35,7 +24,7 @@ public static class ActivitySnapshotRenderer
         bool includeTeleport = true
     )
     {
-        RenderCompact(ui, titleColor, detailColor, title, details);
+        RenderCompact(title, details);
 
         ImGui.Indent(12f);
         DrawActionButtons(navigation, destination, title, actionId, includeTeleport);
@@ -43,26 +32,24 @@ public static class ActivitySnapshotRenderer
     }
 
     public static void Render(
-        IUIService ui,
-        Color? titleColor,
         string title,
         string? titleSuffix,
         params (string Label, object Value)[] fields
     )
     {
-        ui.Text(title, titleColor);
+        ImGui.TextColored(BocchiUi.Header, title);
 
         if (!string.IsNullOrEmpty(titleSuffix))
         {
             ImGui.SameLine();
-            ImGui.TextUnformatted(titleSuffix);
+            BocchiUi.MutedText(titleSuffix);
         }
 
         ImGui.Indent(32);
 
-        foreach((var label, var value) in fields)
+        foreach ((var label, var value) in fields)
         {
-            ui.LabelledValue(label, value);
+            BocchiUi.LabelledValue(label, value);
         }
 
         ImGui.Unindent(32);

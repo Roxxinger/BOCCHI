@@ -9,9 +9,11 @@ using BOCCHI.Common.Data.Zones.Graph;
 using BOCCHI.Common.Data.Zones.Graph.Traversal;
 using BOCCHI.Common.Services;
 using BOCCHI.Common.Services.Paths;
+using BOCCHI.Treasure.Services;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
 using Ocelot.Extensions;
+using Ocelot.Ipc.VNavmesh;
 using Ocelot.Services.Logger;
 using Ocelot.Services.Pathfinding;
 using System.Numerics;
@@ -27,6 +29,7 @@ public class PathCalculator
     IFateContext fateContext,
     AutomatorConfig config,
     CriticalEncounterGeometry geometry,
+    IVNavmeshIpc vnav,
     ILogger<PathCalculator> logger
 ) : IPathCalculator
 {
@@ -61,23 +64,14 @@ public class PathCalculator
             Position = destination,
         };
 
-        GraphTraverser traverser = new(graph, pathfinder, logger);
-        traverser.AddCalculator(new WalkTeleportWalkCalculator());
-        traverser.AddCalculator(new DirectWalkCalculator());
+        List<PathStep> steps = await FindResolvedPathSteps(
+            graph,
+            zone,
+            player.Position,
+            goalNode,
+            distance > NavigationConstants.MaxDirectWalkDistance);
 
-        // Prefer Return over long walks; does not drop the pot.
-        if (distance > NavigationConstants.MaxDirectWalkDistance)
-        {
-            traverser.AddCalculator(new ReturnTeleportWalkCalculator());
-        }
-
-        List<PathStep> steps = await traverser.FindPath(player.Position, goalNode);
-        List<IPathStep> resolved = steps
-            .Select(step => AethernetNavigation.ResolveAetherytePathStep(step, zone, player.Position))
-            .Cast<IPathStep>()
-            .ToList();
-
-        if (resolved.Count == 0)
+        if (steps.Count == 0)
         {
             logger.Debug("No route to {Pos:F0} ({Dist:F0}y) — caller falls back to walking", destination, distance);
             return PathCalculationResult.Failed();
@@ -85,11 +79,11 @@ public class PathCalculator
 
         logger.Debug(
             "Position path planned: {Count} step(s) toward {Pos:F0} ({Dist:F0}y)",
-            resolved.Count,
+            steps.Count,
             destination,
             distance);
 
-        return PathCalculationResult.Planned(resolved);
+        return PathCalculationResult.Planned(steps);
     }
 
     private async Task<PathCalculationResult> Calculate(IGoal goal, bool allowAutoRebuild)
@@ -155,41 +149,56 @@ public class PathCalculator
         float ceCombatRadius = 0f;
         ActivityAreaShape ceShape = ActivityAreaShape.Circle;
         Vector3? ceWaitCenter = null;
-        if (goal.GoalType is CriticalEncounterGoal ceGoalForRadius
-            && geometry.TryGet(ceGoalForRadius.id.Value) is { Radius: > 0 } area)
+        float ceStandRadius = 0f;
+        int ceId = 0;
+        Vector3 ceStaging = pathGoal.Position;
+        if (goal.GoalType is CriticalEncounterGoal ceGoalForRadius)
         {
-            ceShape = NavigationConstants.ResolveCriticalEncounterShape(
-                zone,
-                ceGoalForRadius.id.Value,
-                area.IsSquare);
-            // Authored staging for travel; sanitize LGB wait centre / radius.
-            pathGoal = goalNode;
-            CriticalEncounter.SanitizeRegistration(
-                goalNode.Position,
-                area.Center,
-                area.Radius,
-                out Vector3 sanitizedCenter,
-                out float sizeOk,
-                out bool rejected);
-            ceWaitCenter = sanitizedCenter;
-            ceCombatRadius = sizeOk;
-            zone.ApplyCriticalEncounterCombat(ceGoalForRadius.id.Value, ceCombatRadius, ceShape);
-            logger.Debug(
-                "CE {Id} path goal at authored {Pos:F0} ({Shape}, combat radius {Radius:F0}, wait centre {Center:F0}{Note})",
-                ceGoalForRadius.id.Value,
-                pathGoal.Position,
-                ceShape,
-                ceCombatRadius,
-                ceWaitCenter.Value,
-                rejected ? ", bad MapRange size/centre ignored" : "");
+            ceId = ceGoalForRadius.id.Value;
+            ActivityData? authoredCe = zone.GetCriticalEncounterData()
+                .FirstOrDefault(a => a.Id == ceId);
+            Vector3 authoredStaging = authoredCe?.Position ?? pathGoal.Position;
+            ceStaging = authoredStaging;
+            if (geometry.TryResolveForAuthored(
+                    ceGoalForRadius.id.Value,
+                    authoredStaging,
+                    out string resolveDetail) is { Radius: > 0 } area)
+            {
+                ceShape = NavigationConstants.ResolveCriticalEncounterShape(
+                    zone,
+                    ceGoalForRadius.id.Value,
+                    area.IsSquare);
+                ceStandRadius = authoredCe?.StandRadius ?? 0f;
+                CriticalEncounter.SanitizeRegistration(
+                    authoredStaging,
+                    area.Center,
+                    area.Radius,
+                    out Vector3 sanitizedCenter,
+                    out float sizeOk,
+                    out bool rejected,
+                    authoredCe?.CombatRadius);
+                ceWaitCenter = sanitizedCenter;
+                ceCombatRadius = sizeOk;
+                zone.ApplyCriticalEncounterCombat(ceGoalForRadius.id.Value, ceCombatRadius, ceShape);
+                logger.Debug(
+                    "CE {Id} path goal at authored {Pos:F0} ({Shape}, combat radius {Radius:F0}, wait centre {Center:F0}{Note})",
+                    ceGoalForRadius.id.Value,
+                    pathGoal.Position,
+                    ceShape,
+                    ceCombatRadius,
+                    ceWaitCenter.Value,
+                    rejected || resolveDetail.StartsWith("alternate", StringComparison.Ordinal)
+                        ? $", {resolveDetail}"
+                        : "");
+            }
         }
 
         Vector3 arrivalCheck = potPrepositionStandOff ?? pathGoal.Position;
         float distanceToGoal = player.Position.Distance2D(arrivalCheck);
         bool insideCeWait = ceCombatRadius > 0f
-                            && ceWaitCenter is { } waitAt
+                            && ceWaitCenter is { } waitCenter
                             && NavigationConstants.IsInsideCriticalEncounterWaitArea(
-                                waitAt,
+                                waitCenter,
                                 ceCombatRadius,
                                 ceShape,
                                 player.Position);
@@ -206,31 +215,37 @@ public class PathCalculator
             return PathCalculationResult.NoTravelNeeded();
         }
 
-        GraphTraverser traverser = new(graph, pathfinder, logger);
-        // Teleport-first: from camp this is usually instant. DirectWalk only for short hops.
-        traverser.AddCalculator(new WalkTeleportWalkCalculator());
-        traverser.AddCalculator(new DirectWalkCalculator());
-
-        // Long trips: always add the Return calculator (#172).
-        if (!insideCeWait && distanceToGoal > NavigationConstants.MaxDirectWalkDistance)
-        {
-            traverser.AddCalculator(new ReturnTeleportWalkCalculator());
-        }
-
-        List<PathStep> steps = await traverser.FindPath(player.Position, pathGoal);
-        List<PathStep> resolvedSteps = steps
-            .Select(step => AethernetNavigation.ResolveAetherytePathStep(step, zone, player.Position))
-            .ToList();
+        List<PathStep> resolvedSteps = await FindResolvedPathSteps(
+            graph,
+            zone,
+            player.Position,
+            pathGoal,
+            !insideCeWait && distanceToGoal > NavigationConstants.MaxDirectWalkDistance);
 
         if (potPrepositionStandOff is { } standOff)
         {
-            // Pot preposition: rewrite the last Pathfind only (#174).
-            int lastPathfind = resolvedSteps.FindLastIndex(step => step.PathStepData is Pathfind);
-            if (lastPathfind >= 0)
+            RewriteLastPathfind(resolvedSteps, standOff);
+        }
+        else if (ceCombatRadius > 0f && ceWaitCenter is { } waitAt)
+        {
+            float red = NavigationConstants.CriticalEncounterRedRadius(
+                NavigationConstants.CriticalEncounterPaddedRadius(ceCombatRadius, ceShape),
+                ceShape);
+            Vector3 approach = NavigationApproach.GetCriticalEncounterApproachPosition(
+                waitAt, red, ceShape, ceStandRadius, stableSeed: ceId);
+            approach = ResolveCriticalEncounterPathfindTarget(approach, waitAt, player.Position);
+
+            if (CriticalEncounterPathOverrides.TryGetApproachVias(
+                    zone.ZoneId,
+                    ceId,
+                    player.Position,
+                    ceStaging,
+                    out IReadOnlyList<Vector3> vias))
             {
-                float range = resolvedSteps[lastPathfind].PathStepData is Pathfind(_, var r) ? r : 0f;
-                resolvedSteps[lastPathfind] = PathStep.Pathfind(standOff, range);
+                InsertPathfindBeforeLast(resolvedSteps, vias, NavigationConstants.EventArrivalRadius);
             }
+
+            RewriteLastPathfind(resolvedSteps, approach);
         }
 
         int stepsBeforeTeleportOnlyStrip = resolvedSteps.Count;
@@ -245,7 +260,6 @@ public class PathCalculator
 
         if (resolvedSteps.Count == 0)
         {
-            // Teleport-only mode stripped walks — PathfindingHandler pauses for manual travel.
             if (config.StopAfterReturn && stepsBeforeTeleportOnlyStrip > 0)
             {
                 logger.Debug(
@@ -325,5 +339,74 @@ public class PathCalculator
         Fate? live = fates.Snapshot().FirstOrDefault(f => f.Id.Value == id.Value);
         float toCenter = live != null ? player.Distance2D(live.Position) : float.MaxValue;
         return NavigationConstants.IsWithinFateAiHandoff(toCenter, nearest);
+    }
+
+    private async Task<List<PathStep>> FindResolvedPathSteps(
+        ZoneGraph graph,
+        IZone zone,
+        Vector3 from,
+        Node goal,
+        bool addReturnCalculator)
+    {
+        GraphTraverser traverser = new(graph, pathfinder, logger);
+        traverser.AddCalculator(new WalkTeleportWalkCalculator());
+        traverser.AddCalculator(new DirectWalkCalculator());
+        if (addReturnCalculator)
+        {
+            traverser.AddCalculator(new ReturnTeleportWalkCalculator());
+        }
+
+        List<PathStep> steps = await traverser.FindPath(from, goal);
+        return steps
+            .Select(step => AethernetNavigation.ResolveAetherytePathStep(step, zone, from))
+            .ToList();
+    }
+
+    private Vector3 ResolveCriticalEncounterPathfindTarget(Vector3 approach, Vector3 waitCenter, Vector3 player)
+    {
+        if (TreasurePathing.TrySnapToNavmesh(approach, player.Y, vnav, out Vector3 snapped))
+        {
+            return snapped;
+        }
+
+        if (TreasurePathing.TrySnapToNavmesh(waitCenter, player.Y, vnav, out snapped))
+        {
+            logger.Debug(
+                "CE approach off-mesh at {Approach:F0} — using snapped wait centre {Center:F0}",
+                approach,
+                snapped);
+            return snapped;
+        }
+
+        logger.Debug(
+            "CE approach off-mesh at {Approach:F0} — keeping unsnapped target (navmesh may still be loading)",
+            approach);
+        return approach;
+    }
+
+    private static void InsertPathfindBeforeLast(List<PathStep> steps, IReadOnlyList<Vector3> vias, float range)
+    {
+        int lastPathfind = steps.FindLastIndex(step => step.PathStepData is Pathfind);
+        if (lastPathfind < 0)
+        {
+            return;
+        }
+
+        foreach (Vector3 via in vias)
+        {
+            steps.Insert(lastPathfind, PathStep.Pathfind(via, range));
+        }
+    }
+
+    private static void RewriteLastPathfind(List<PathStep> steps, Vector3 destination)
+    {
+        int lastPathfind = steps.FindLastIndex(step => step.PathStepData is Pathfind);
+        if (lastPathfind < 0)
+        {
+            return;
+        }
+
+        float range = steps[lastPathfind].PathStepData is Pathfind(_, var r) ? r : 0f;
+        steps[lastPathfind] = PathStep.Pathfind(destination, range);
     }
 }

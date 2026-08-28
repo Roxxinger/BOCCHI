@@ -8,31 +8,26 @@
   "fields": {
     "should_automate_buffs": {
       "label": "自动维持增益",
-      "tooltip": "违规模式中，在知识水晶处维持下方增益。"
+      "tooltip": "开：违规模式中，以及刷怪为水晶增益暂停时，在知识水晶刷新所选增益。\n关：不自动刷新增益。"
     },
     "apply_romeos_ballad": {
-      "label": "爱之歌",
-      "tooltip": "开启自动增益时保持爱之歌生效。"
+      "label": "爱之歌"
     },
     "apply_enduring_fortitude": {
-      "label": "守护之祈祷",
-      "tooltip": "开启自动增益时保持守护之祈祷生效。"
+      "label": "守护之祈祷"
     },
     "apply_fleetfooted": {
-      "label": "架招疾行",
-      "tooltip": "开启自动增益时保持架招疾行生效。"
+      "label": "架招疾行"
     },
     "apply_quicker_step": {
-      "label": "快攻步",
-      "tooltip": "开启自动增益时保持快攻步生效。"
+      "label": "快攻步"
     },
     "apply_buffs_using_inquiring_mind": {
       "label": "尽量使用探求心",
       "tooltip": "在知识水晶附近，辅助自由人可一次附加所选已解锁增益。"
     },
     "reapply_threshold": {
-      "label": "剩余不足（分钟）时刷新",
-      "tooltip": "某个增益剩余时间不超过该分钟数时重新附加。"
+      "label": "剩余不足（分钟）时刷新"
     }
   }
 }

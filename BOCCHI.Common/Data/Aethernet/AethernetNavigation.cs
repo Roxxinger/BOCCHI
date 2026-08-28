@@ -37,16 +37,34 @@ public static class AethernetNavigation
         data.GetBodyRadius() + (EdgeClearance * 0.5f);
 
     /// <summary>
-    ///     Approach-side point on the magenta Lifestream ring (ready to teleport).
+    ///     Magenta ring + pathfind stop slack. Body alone left Base Camp stuck ~0.2y outside
+    ///     the ring after vnav arrived (crystal Y vs Destination footpad Y).
+    /// </summary>
+    public static float GetLifestreamReadyRadius(this AethernetData data) =>
+        data.GetBodyRadius() + PathfindArrivalRadius;
+
+    /// <summary>
+    ///     Walk target on the magenta body ring (not inside the mesh). Pathfind may stop a
+    ///     little short; ready radius includes <see cref="PathfindArrivalRadius"/> slack.
+    /// </summary>
+    public static float GetLifestreamApproachRadius(this AethernetData data) => data.GetBodyRadius();
+
+    /// <summary>
+    ///     Approach-side point on the magenta Lifestream ring.
     ///     Idle wandering uses <see cref="GetIdleWaitPosition"/> / cyan candidates instead.
     /// </summary>
     public static Vector3 GetCampStandOffPosition(this AethernetData data, Vector3? from = null)
-        => GetRingPosition(data.Position, data.GetInteractPosition(), data.GetBodyRadius(), from);
+        => GetRingPosition(data.Position, data.GetInteractPosition(), data.GetLifestreamApproachRadius(), from);
 
     public static Vector3 GetCampStandOffPosition(this Node node, Vector3? from = null)
-        => GetRingPosition(node.Position, node.GetInteractPosition(), DefaultBodyRadius, from);
+        => GetRingPosition(node.Position, node.GetInteractPosition(), GetNodeBodyRadius(node), from);
 
     private static float DefaultBodyRadius => MathF.Max(2f, AethernetData.DefaultDeadRadius);
+
+    private static float GetNodeBodyRadius(Node node) =>
+        node.Metadata is TeleportNodeMetadata { DeadRadius: var dead }
+            ? MathF.Max(2f, dead)
+            : DefaultBodyRadius;
 
     public static Vector3 GetIdleWaitPosition(this AethernetData data, Vector3? from = null)
         => GetRingPosition(data.Position, data.GetInteractPosition(), data.GetIdleWaitRadius(), from);
@@ -67,8 +85,11 @@ public static class AethernetNavigation
 
         // Always the outer ring on that side. Shrinking to Destination distance put the
         // target inside the crystal; floor-snap then dragged it to the far-side pad.
+        // Use Destination / interact Y when set — crystal.Y is often above the walkable pad
+        // (North Horn Base Camp: crystal ~259.7, Destination footpad ~258.5).
         Vector3 onRing = crystal + Vector3.Normalize(dir) * MathF.Max(radius, 0.5f);
-        return new Vector3(onRing.X, crystal.Y, onRing.Z);
+        float standY = interactOrHint != Vector3.Zero ? interactOrHint.Y : crystal.Y;
+        return new Vector3(onRing.X, standY, onRing.Z);
     }
 
     private static Vector3 FlatOffset(Vector3 point, Vector3 origin)
@@ -107,11 +128,7 @@ public static class AethernetNavigation
     public static bool IsWithinLifestreamRange(this IZone zone, Vector3 position)
     {
         return zone.EnumerateAetherytes()
-            .Any(aetheryte =>
-            {
-                float ready = aetheryte.GetBodyRadius() + PathfindArrivalRadius;
-                return position.Distance2D(aetheryte.Position) <= ready;
-            });
+            .Any(aetheryte => position.Distance2D(aetheryte.Position) <= aetheryte.GetLifestreamReadyRadius());
     }
 
     /// <summary>Idle can stop once at or inside the drawn cyan ring (no pad past it).</summary>
