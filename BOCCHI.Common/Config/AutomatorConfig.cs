@@ -1,6 +1,7 @@
 using BOCCHI.Common.Config.Fields;
 using Ocelot.Config;
 using Ocelot.Config.Fields;
+using Ocelot.Config.Renderers.Enum;
 
 namespace BOCCHI.Common.Config;
 
@@ -179,20 +180,20 @@ public class AutomatorConfig : IAutoConfig
     public bool EnableRandomization { get; set; } = false;
 
     /// <summary>Minimum Overdodge AoE setting for randomization.</summary>
-    [EnumSelect<BossModOverdodge>(Order = 24, Section = "randomization")]
-    public BossModOverdodge RandomOverdodgeMin { get; set; } = BossModOverdodge.None;
+        [EnumSelect<BossModOverdodge, BossModOverdodgeDisplay, NoOpFilter<BossModOverdodge>>(Order = 24, Section = "randomization")]
+        public BossModOverdodge RandomOverdodgeMin { get; set; } = BossModOverdodge.None;
 
-    /// <summary>Maximum Overdodge AoE setting for randomization.</summary>
-    [EnumSelect<BossModOverdodge>(Order = 25, Section = "randomization")]
-    public BossModOverdodge RandomOverdodgeMax { get; set; } = BossModOverdodge.Large;
+        /// <summary>Maximum Overdodge AoE setting for randomization.</summary>
+        [EnumSelect<BossModOverdodge, BossModOverdodgeDisplay, NoOpFilter<BossModOverdodge>>(Order = 25, Section = "randomization")]
+        public BossModOverdodge RandomOverdodgeMax { get; set; } = BossModOverdodge.Large;
 
     /// <summary>Minimum Delayed Movement setting for randomization.</summary>
-    [EnumSelect<BossModMovementDelay>(Order = 26, Section = "randomization")]
-    public BossModMovementDelay RandomDelayedMin { get; set; } = BossModMovementDelay.None;
+        [EnumSelect<BossModMovementDelay, BossModMovementDelayDisplay, NoOpFilter<BossModMovementDelay>>(Order = 26, Section = "randomization")]
+        public BossModMovementDelay RandomDelayedMin { get; set; } = BossModMovementDelay.None;
 
-    /// <summary>Maximum Delayed Movement setting for randomization.</summary>
-    [EnumSelect<BossModMovementDelay>(Order = 27, Section = "randomization")]
-    public BossModMovementDelay RandomDelayedMax { get; set; } = BossModMovementDelay.Long;
+        /// <summary>Maximum Delayed Movement setting for randomization.</summary>
+        [EnumSelect<BossModMovementDelay, BossModMovementDelayDisplay, NoOpFilter<BossModMovementDelay>>(Order = 27, Section = "randomization")]
+        public BossModMovementDelay RandomDelayedMax { get; set; } = BossModMovementDelay.Long;
 
     /// <summary>Minimum melee target range (meters) for randomization.</summary>
     [FloatRange(1.1f, 30f, Order = 28, Section = "randomization")]

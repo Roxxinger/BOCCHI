@@ -1,5 +1,6 @@
 using Dalamud.Plugin.Services;
 using Lumina.Excel.Sheets;
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -7,6 +8,8 @@ namespace BOCCHI.Common.Services;
 
 public static class LogMessageHelper
 {
+    private static readonly ConcurrentDictionary<uint, string> PatternCache = new();
+
     private static readonly Regex NumPlaceholder = new(@"^<num\((\w+)\)>", RegexOptions.Compiled);
 
     private static readonly Regex OtherMacro = new(@"^<[^>]+>", RegexOptions.Compiled);
@@ -14,7 +17,10 @@ public static class LogMessageHelper
     /// <summary>
     /// Build a regex from a LogMessage row: literal text escaped, <c>&lt;num(Name)&gt;</c> → named \d+ groups.
     /// </summary>
-    public static string GetLogMessagePattern(IDataManager data, uint id)
+    public static string GetLogMessagePattern(IDataManager data, uint id) =>
+        PatternCache.GetOrAdd(id, key => BuildLogMessagePattern(data, key));
+
+    private static string BuildLogMessagePattern(IDataManager data, uint id)
     {
         string raw = data.GetExcelSheet<LogMessage>().GetRow(id).Text.ToString();
         var result = new StringBuilder(raw.Length);

@@ -203,7 +203,7 @@ public abstract class BaseZone
     private ZoneGraphSource graphSource = ZoneGraphSource.None;
 
     /// <summary>Schema for on-disk / shipped zone path maps. Bump with Data/ZoneGraphs files.</summary>
-    private const int GraphSchemaVersion = 7;
+    private const int GraphSchemaVersion = 8;
 
     public ZoneGraphLoadState GraphLoadState => graphLoadState;
 

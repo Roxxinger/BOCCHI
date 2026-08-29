@@ -558,7 +558,7 @@ public class FarmingPotChestsHandler
         Vector3 pathTarget = live?.Position ?? target;
         // Arrive at the snapped mesh point, not the authored pad — a 6–12y snap used to leave us
         // forever short of CandidateProbeRadius and re-path in place (#201).
-        if (!TryResolvePathable(pathTarget, skipIfOffMesh: live == null, out Vector3 pathable))
+        if (!TreasurePathing.TryResolvePathable(pathTarget, player.Position.Y, vnav, skipIfOffMesh: live == null, out Vector3 pathable))
         {
             logger.Warning(
                 "Pot treasure: no navmesh at {Label} {Pos:F0} — skipping candidate ({Remaining} left)",
@@ -878,7 +878,7 @@ public class FarmingPotChestsHandler
         Vector3 chestPosition = farm.Chests.Peek();
         IGameObject? liveChest = FindChestNear(chestPosition);
         Vector3 pathTarget = liveChest?.Position ?? chestPosition;
-        if (!TryResolvePathable(pathTarget, skipIfOffMesh: liveChest == null, out Vector3 pathable))
+        if (!TreasurePathing.TryResolvePathable(pathTarget, player.Position.Y, vnav, skipIfOffMesh: liveChest == null, out Vector3 pathable))
         {
             SkipCurrentBlindChest(farm, pathTarget, "no navmesh at blind chest");
             return;
@@ -971,14 +971,9 @@ public class FarmingPotChestsHandler
     /// <returns>False when the pad is off-mesh and <paramref name="skipIfOffMesh"/> is set.</returns>
     private bool EnsurePathing(Vector3 destination, bool allowRemount = true, bool skipIfOffMesh = true)
     {
-        if (!TreasurePathing.TrySnapToNavmesh(destination, player.Position.Y, vnav, out Vector3 pathable))
+        if (!TreasurePathing.TryResolvePathable(destination, player.Position.Y, vnav, skipIfOffMesh, out Vector3 pathable))
         {
-            if (skipIfOffMesh)
-            {
-                return false;
-            }
-
-            pathable = TreasurePathing.PathablePosition(destination, player.Position.Y);
+            return false;
         }
 
         // Long hops use the FATE/CE aethernet planner; short ones stay on vnav.
@@ -1104,28 +1099,13 @@ public class FarmingPotChestsHandler
 
     private Vector3 PathableTreasurePosition(Vector3 position)
     {
-        _ = TreasurePathing.TrySnapToNavmesh(position, player.Position.Y, vnav, out Vector3 pathable);
+        _ = TreasurePathing.TryResolvePathable(
+            position,
+            player.Position.Y,
+            vnav,
+            skipIfOffMesh: false,
+            out Vector3 pathable);
         return pathable;
-    }
-
-    /// <summary>
-    ///     Mesh point we actually walk to. Authored pads with no same-floor polygon are skipped;
-    ///     live coffers still get a Y rewrite when the snap fails.
-    /// </summary>
-    private bool TryResolvePathable(Vector3 destination, bool skipIfOffMesh, out Vector3 pathable)
-    {
-        if (TreasurePathing.TrySnapToNavmesh(destination, player.Position.Y, vnav, out pathable))
-        {
-            return true;
-        }
-
-        if (skipIfOffMesh)
-        {
-            return false;
-        }
-
-        pathable = TreasurePathing.PathablePosition(destination, player.Position.Y);
-        return true;
     }
 
     private bool TryAcquireReveal(PotChestFarmMemory farm, out IGameObject? reveal)

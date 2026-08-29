@@ -19,6 +19,13 @@ public class CriticalEncounterRepository
     CriticalEncounterGeometry geometry
 ) : ICriticalEncounterRepository, IOnUpdate
 {
+    public UpdateLimit UpdateLimit =>
+        new()
+        {
+            Mode = UpdateLimitMode.Milliseconds,
+            Limit = 500
+        };
+
     public event Action<CriticalEncounter>? CriticalEncounterAdded;
 
     public event Action<CriticalEncounterId>? CriticalEncounterRemoved;

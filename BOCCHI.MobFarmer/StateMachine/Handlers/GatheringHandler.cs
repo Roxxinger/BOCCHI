@@ -8,6 +8,7 @@ using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
 using ECommons.Throttlers;
 using Ocelot.Extensions;
+using Ocelot.Services.Logger;
 using Ocelot.Services.Pathfinding;
 using Ocelot.Services.PlayerState;
 using Ocelot.States.Flow;
@@ -25,24 +26,41 @@ public class GatheringHandler
     ITargetManager targets,
     IPathfinder pathfinder,
     ICondition conditions,
-    IPlayer player
+    IPlayer player,
+    ILogger<GatheringHandler> logger
 ) : FlowStateHandler<FarmerPhase>(FarmerPhase.Gathering)
 {
+    private const float PathArriveRange = 2f;
+
+    private readonly FarmerWalkStuckAssist stuckAssist = new();
+
+    private readonly HashSet<ulong> skippedMobIds = [];
+
+    public override void Exit(FarmerPhase next)
+    {
+        stuckAssist.Reset();
+        base.Exit(next);
+    }
+
     public override FarmerPhase? Handle()
     {
         List<IBattleNpc> inCombat = scanner.InCombat.ToList();
-        List<IBattleNpc> notInCombat = scanner.NotInCombat.ToList();
+        List<IBattleNpc> notInCombat = scanner.NotInCombat
+            .Where(o => !skippedMobIds.Contains(o.GameObjectId))
+            .ToList();
 
         if (MobFarmerPack.CountTowardMinimum(inCombat, config.CountSpecialMobsTowardMinimum)
             >= farmer.EffectiveMinimumMobsToStartFight)
         {
             pathfinder.Stop();
+            stuckAssist.Reset();
             return FarmerPhase.Stacking;
         }
 
         if (notInCombat.Count == 0)
         {
             pathfinder.Stop();
+            stuckAssist.Reset();
             return inCombat.Count > 0 ? FarmerPhase.Stacking : FarmerPhase.Waiting;
         }
 
@@ -71,48 +89,89 @@ public class GatheringHandler
             pull.TryPull(current);
         }
 
+        bool pulled = current.IsTargetingPlayer(objects.LocalPlayer);
+        Vector3 destination = Destination(current.Position, nextPos, dist, pulled);
+
+        FarmerWalkStuckAssist.Recovery recovery = stuckAssist.Tick(
+            current.GameObjectId,
+            dist,
+            current.Position,
+            pathfinder.GetState());
+
+        if (recovery != FarmerWalkStuckAssist.Recovery.None
+            && TryRecoverFromStuck(current, recovery))
+        {
+            return null;
+        }
+
         if (pathfinder.GetState() != PathfindingState.Idle)
         {
             return null;
         }
 
-        bool pulled = current.IsTargetingPlayer(objects.LocalPlayer);
         if (!pulled && !EzThrottler.Throttle("MobFarmer::Gathering::Repath"))
         {
             return null;
         }
 
-        Vector3 destination = Destination(current.Position, nextPos, dist, pulled);
-        pathfinder.PathfindAndMoveTo(new(destination)
-        {
-            AllowFlying = false,
-            DistanceThreshold = 2f,
-            ShouldSnapToFloor = true,
-        });
-
+        IssuePath(destination);
         return null;
     }
 
-    private static Vector3 Destination(Vector3 current, Vector3? next, float distToCurrent, bool currentPulled)
+    private bool TryRecoverFromStuck(IBattleNpc current, FarmerWalkStuckAssist.Recovery recovery)
     {
-        if (distToCurrent <= FarmerPullAssist.PullRange)
+        switch (recovery)
         {
-            return currentPulled ? next ?? current : current;
+            case FarmerWalkStuckAssist.Recovery.Nudge:
+                logger.Debug(
+                    "Mob Farmer: stuck approaching {Name} — nudging sideways",
+                    current.Name.TextValue);
+                pathfinder.Stop();
+                IssuePath(FarmerWalkStuckAssist.LateralNudge(player.Position, current.Position));
+                return true;
+
+            case FarmerWalkStuckAssist.Recovery.RepathGoal:
+                logger.Debug(
+                    "Mob Farmer: still stuck on {Name} — repathing to mob",
+                    current.Name.TextValue);
+                pathfinder.Stop();
+                IssuePath(current.Position);
+                return true;
+
+            case FarmerWalkStuckAssist.Recovery.GiveUp:
+                logger.Info(
+                    "Mob Farmer: giving up on {Name} after stuck recoveries — trying another mob",
+                    current.Name.TextValue);
+                pathfinder.Stop();
+                skippedMobIds.Add(current.GameObjectId);
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private void IssuePath(Vector3 destination)
+    {
+        pathfinder.PathfindAndMoveTo(new(destination)
+        {
+            AllowFlying = false,
+            DistanceThreshold = PathArriveRange,
+            ShouldSnapToFloor = true,
+        });
+    }
+
+    /// <summary>
+    ///     Walk toward the mob along player→mob, not current→next (which can aim through walls).
+    ///     When already in pull range, hold on the current mob or step toward the next pack member.
+    /// </summary>
+    private static Vector3 Destination(Vector3 mobPos, Vector3? next, float distToMob, bool mobPulled)
+    {
+        if (distToMob <= FarmerPullAssist.PullRange)
+        {
+            return mobPulled ? next ?? mobPos : mobPos;
         }
 
-        if (next is not { } nextPos)
-        {
-            return current;
-        }
-
-        Vector3 toNext = nextPos - current;
-        toNext.Y = 0;
-        if (toNext.LengthSquared() < 0.01f)
-        {
-            return current;
-        }
-
-        Vector3 dir = Vector3.Normalize(toNext);
-        return current + (dir * (FarmerPullAssist.PullRange * 0.7f));
+        return mobPos;
     }
 }

@@ -20,6 +20,13 @@ public class FateRepository
     IZoneProvider zones
 ) : IFateRepository, IOnUpdate
 {
+    public UpdateLimit UpdateLimit =>
+        new()
+        {
+            Mode = UpdateLimitMode.Milliseconds,
+            Limit = 500
+        };
+
     public event Action<Fate>? FateAdded;
 
     public event Action<FateId>? FateRemoved;

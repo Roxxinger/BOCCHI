@@ -13,6 +13,7 @@ public class MobFarmerRenderer
 (
     Func<IMobFarmer> farmerFactory,
     IMobScanner scanner,
+    MobFarmerPanelState panelState,
     MobFarmerConfig config,
     UIConfig uiConfig,
     ITranslator<MainWindow> translator
@@ -26,6 +27,8 @@ public class MobFarmerRenderer
 
     public void Render()
     {
+        panelState.MarkRendered();
+
         if (ImGui.Button(Farmer.Running
             ? translator.T(".automation.mob_farmer.stop")
             : translator.T(".automation.mob_farmer.start")))
@@ -34,8 +37,8 @@ public class MobFarmerRenderer
         }
 
         ImGui.Spacing();
-        BocchiUi.LabelledValue(translator.T(".automation.mob_farmer.not_engaged"), scanner.NotInCombat.Count().ToString());
-        BocchiUi.LabelledValue(translator.T(".automation.mob_farmer.engaged"), scanner.InCombat.Count().ToString());
+        BocchiUi.LabelledValue(translator.T(".automation.mob_farmer.not_engaged"), scanner.NotInCombat.Count.ToString());
+        BocchiUi.LabelledValue(translator.T(".automation.mob_farmer.engaged"), scanner.InCombat.Count.ToString());
         BocchiUi.LabelledValue(translator.T(".automation.mob_farmer.selected_mobs"), config.Mobs.Count.ToString());
         if (Farmer.CurrentSpotName is { } spotName)
         {

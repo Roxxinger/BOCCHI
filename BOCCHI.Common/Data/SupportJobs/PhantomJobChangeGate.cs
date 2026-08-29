@@ -1,9 +1,9 @@
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin.Services;
 
-namespace BOCCHI.Automator.Services;
+namespace BOCCHI.Common.Data.SupportJobs;
 
-/// <summary>Condition gates shared by Illegal Mode job-swap helpers.</summary>
+/// <summary>Condition gates shared by phantom job swaps (Illegal Mode, Sight chain, buffs).</summary>
 public static class PhantomJobChangeGate
 {
     /// <summary>

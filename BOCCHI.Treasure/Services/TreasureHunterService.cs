@@ -9,6 +9,7 @@ using BOCCHI.Common.Targeting;
 using BOCCHI.Treasure.ChainRecipes;
 using BOCCHI.Treasure.Data;
 using BOCCHI.Treasure.Hunt;
+using BOCCHI.Treasure.Services;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin;
@@ -160,6 +161,25 @@ public class TreasureHunterService
     private float viaStuckBestDistance = float.MaxValue;
     private DateTime viaStuckStartedUtc = DateTime.MinValue;
 
+    /// <summary>Last snapped target issued to vnav (repath when it drifts).</summary>
+    private Vector3? lastNavigateTarget;
+
+    /// <summary>
+    ///     Live coffer XZ for the current WalkToNode. Sticky so a one-tick miss in the object
+    ///     table cannot flip pathing back to the authored pad and tug-of-war with the chest.
+    /// </summary>
+    private uint? walkLiveBindNodeId;
+
+    private Vector3? walkLiveBindPosition;
+
+    /// <summary>
+    ///     Once we leave the mesh snap to close on the real pad/coffer, do not fall back to the
+    ///     snap — that repaths every tick when the live object sits several yalms off-mesh.
+    /// </summary>
+    private bool navigateClosingOnDestination;
+
+    private Vector3? navigateClosingForDestination;
+
     public void OnStop() => Teardown();
 
     public void Update()
@@ -220,11 +240,22 @@ public class TreasureHunterService
             List<uint> validNodes = GetValidNodesForNextPlan();
             if (pendingPreferStartNode is uint preferLatch
                 && !validNodes.Contains(preferLatch)
-                && layoutById.ContainsKey(preferLatch))
+                && layoutById.TryGetValue(preferLatch, out TreasureLayoutDatum preferLayout))
             {
-                // Divert latch — pad may have been checked empty while still live.
-                checkedNodeIds.Remove(preferLatch);
-                validNodes.Insert(0, preferLatch);
+                List<TreasureData> authored = zones.GetZone().GetTreasureData();
+                IReadOnlyList<CrowdsourcedCofferCandidate> liveSpots = cofferLocations.GetAcceptedForCurrentZone();
+                if (IsHuntPadAllowed(
+                        preferLayout,
+                        authored,
+                        liveSpots,
+                        maxLevelOverrideForNextRun ?? config.HuntMaxLevel,
+                        authored.Exists(d => d.Position.HasValue),
+                        liveSpots.Count > 0))
+                {
+                    // Divert latch — pad may have been checked empty while still live.
+                    checkedNodeIds.Remove(preferLatch);
+                    validNodes.Insert(0, preferLatch);
+                }
             }
 
             steps.Clear();
@@ -276,19 +307,25 @@ public class TreasureHunterService
             if (pendingSessionCampReturn)
             {
                 pendingSessionCampReturn = false;
+                bool alreadyInCamp = zones.GetZone().IsInBasecamp();
                 if (steps.Count > 0 && steps[0].Type == HuntPathfinderStepType.WalkToNode)
                 {
-                    // Session start far from camp: Return + shard hop instead of walking in.
+                    // Session start: aethernet (and Return when not already in camp) instead of a
+                    // cross-map walk from base to the first pad.
                     uint firstNode = steps[0].NodeId;
                     steps.RemoveAt(0);
-                    steps.InsertRange(0, pathPlanner.BuildEntryLeg(firstNode));
+                    steps.InsertRange(0, pathPlanner.BuildEntryLeg(firstNode, alreadyInCamp));
                 }
-                else if (steps.Count == 0 || steps[0].Type != HuntPathfinderStepType.ReturnToBaseCamp)
+                else if (!alreadyInCamp
+                         && (steps.Count == 0
+                             || steps[0].Type != HuntPathfinderStepType.ReturnToBaseCamp))
                 {
                     steps.Insert(0, HuntPathfinderStep.ReturnToBaseCamp());
                 }
 
-                log.Debug("Treasure hunt: prepended session-start Return to base camp");
+                log.Debug(
+                    "Treasure hunt: prepended session-start camp entry (alreadyInCamp={Already})",
+                    alreadyInCamp);
             }
 
             pathPlanner = null;
@@ -398,6 +435,9 @@ public class TreasureHunterService
         walkVias.Clear();
         walkViaIndex = 0;
         StepDistance = 0f;
+        lastNavigateTarget = null;
+        ClearWalkLiveBind();
+        ClearNavigateClosingLatch();
 
         if (NextStepIsTravelHop())
         {
@@ -540,6 +580,8 @@ public class TreasureHunterService
         checkedNodeIds.Clear();
         stuckSkippedNodeIds.Clear();
         ClearEmptyPadCandidate();
+        ClearWalkLiveBind();
+        ClearNavigateClosingLatch();
         ResetStuckWatch();
         if (!ManagedByPotsTreasure)
         {
@@ -567,14 +609,16 @@ public class TreasureHunterService
                 config.LastSouthHornStartSegment = startSegment;
                 configSaver.Save();
                 pendingEntryNodeId = pathPlanner.TryGetSegmentFirstNode(startSegment);
-                pendingSessionCampReturn = !zone.IsInBasecamp();
+                // Always plan camp→aethernet entry for the first pad (Return only when not already
+                // in camp). Skipping this while in camp caused a ~1000y walk across the map.
+                pendingSessionCampReturn = true;
             }
 
             log.Debug(
-                "Treasure hunt South Horn: start segment {Segment} (pad {Pad}); camp Return {Return}",
+                "Treasure hunt South Horn: start segment {Segment} (pad {Pad}); camp entry pending (inCamp={InCamp})",
                 startSegment ?? "-",
                 pendingEntryNodeId?.ToString() ?? "-",
-                pendingSessionCampReturn ? "pending" : "skip (already in camp)");
+                zone.IsInBasecamp());
         }
 
         Running = true;
@@ -738,6 +782,8 @@ public class TreasureHunterService
         pathfinder.Stop();
         vnav.Stop();
         activeChain = null;
+        lastNavigateTarget = null;
+        ClearNavigateClosingLatch();
         ResetStuckWatch();
     }
 
@@ -798,14 +844,28 @@ public class TreasureHunterService
 
     private void TryIssueStuckNudge(HuntPathfinderStep step)
     {
-        Vector3 dest = TryGetLayout(step.NodeId, out TreasureLayoutDatum layout)
-            ? layout.Position
-            : player.Position;
+        Vector3 dest = walkLiveBindNodeId == step.NodeId && walkLiveBindPosition is { } live
+            ? live
+            : TryGetLayout(step.NodeId, out TreasureLayoutDatum layout)
+                ? layout.Position
+                : player.Position;
+
+        if (TreasurePathing.TrySnapToNavmesh(dest, player.Position.Y, vnav, out Vector3 pathableDest))
+        {
+            dest = pathableDest;
+        }
+
         Vector3 nudge = PathfindingNudge.LateralFrom(player.Position, dest);
+        if (TreasurePathing.TrySnapToNavmesh(nudge, player.Position.Y, vnav, out Vector3 pathableNudge))
+        {
+            nudge = pathableNudge;
+        }
 
         log.Debug("Treasure hunt stuck near {NodeId} — nudging sideways around geometry (#156)", step.NodeId);
         pathfinder.Stop();
         vnav.Stop();
+        lastNavigateTarget = null;
+        ClearNavigateClosingLatch();
         vnav.PathfindAndMoveCloseTo(nudge, false, 1.5f);
     }
 
@@ -1244,8 +1304,11 @@ public class TreasureHunterService
             return false;
         }
 
-        // Defer while fighting — Sight dismounts + swaps PJ; remount fails in combat.
-        if (conditions[ConditionFlag.InCombat])
+        // Defer while fighting or job-swap gates are closed — starting the chain early
+        // only burns a 15s WaitUntil step (Dismount / ToFreelancer / RestoreJob).
+        if (conditions[ConditionFlag.InCombat]
+            || DismountAssist.TryDismount(conditions)
+            || PhantomJobChangeGate.IsBlocked(conditions))
         {
             return false;
         }
@@ -1432,6 +1495,12 @@ public class TreasureHunterService
 
         Vector3 layoutDestination = layout.Position;
 
+        if (walkLiveBindNodeId != step.NodeId)
+        {
+            ClearWalkLiveBind();
+            walkLiveBindNodeId = step.NodeId;
+        }
+
         // Opened/looted (incl. VBM) — skip before vias.
         if (TryCompleteOpenedLayoutCoffer(layoutDestination, step.NodeId))
         {
@@ -1497,18 +1566,22 @@ public class TreasureHunterService
         }
 
         IGameObject? present = FindTreasureForLayout(layoutDestination, step.NodeId);
+        if (present != null && !OpenTreasureCofferChain.IsOpenedOrLooted(present))
+        {
+            walkLiveBindPosition = present.Position;
+        }
 
-        Vector3 destination = present?.Position ?? layoutDestination;
+        Vector3 destination = walkLiveBindPosition ?? present?.Position ?? layoutDestination;
 
         float dist2d = player.Position.Distance2D(destination);
         StepDistance = dist2d;
 
-        if (present == null)
+        if (present == null && walkLiveBindPosition == null)
         {
-            bool stillApproaching = IsStillApproachingOutsideTrust(dist2d);
-
-            // Outside the trust slider — coffers often stream only in the last stretch.
-            // Inside it, empty-skip may run while still walking (divert can reclaim false skips).
+            // Outside the trust slider — keep walking. Inside it (or when a neighbour coffer
+            // proves the region streamed), empty-skip may run (#168).
+            bool stillApproaching = IsStillApproachingOutsideTrust(dist2d)
+                                    && !RegionProvesStream(layoutDestination);
             if (stillApproaching)
             {
                 ClearEmptyPadCandidate();
@@ -1544,6 +1617,7 @@ public class TreasureHunterService
                 if (loose != null)
                 {
                     present = loose;
+                    walkLiveBindPosition = loose.Position;
                     destination = loose.Position;
                     dist2d = player.Position.Distance2D(destination);
                     StepDistance = dist2d;
@@ -1567,6 +1641,15 @@ public class TreasureHunterService
                 return false;
             }
         }
+        else if (present == null)
+        {
+            // Bound a live coffer earlier this pad — keep walking to it through brief radar gaps.
+            TryNavigateToward(
+                destination,
+                OpenTreasureCofferChain.PreferredOpenDistance,
+                OpenTreasureCofferChain.PathArrivalRange);
+            return false;
+        }
 
         ClearEmptyPadCandidate();
 
@@ -1581,7 +1664,8 @@ public class TreasureHunterService
         if (!TryNavigateToward(
                 destination,
                 OpenTreasureCofferChain.PreferredOpenDistance,
-                OpenTreasureCofferChain.PathArrivalRange))
+                OpenTreasureCofferChain.PathArrivalRange,
+                skipIfOffMesh: false))
         {
             return false;
         }
@@ -1596,7 +1680,10 @@ public class TreasureHunterService
             return false;
         }
 
-        if (dist2d > OpenTreasureCofferChain.PreferredOpenDistance || !IsSameFloor(destination))
+        // Small slack: mesh often leaves you a hair outside PreferredOpenDistance (2.05y spam).
+        const float OpenAttemptSlack = 0.5f;
+        if (dist2d > OpenTreasureCofferChain.PreferredOpenDistance + OpenAttemptSlack
+            || !IsSameFloor(destination))
         {
             return false;
         }
@@ -1730,7 +1817,7 @@ public class TreasureHunterService
         }
 
         float arrival = AethernetNavigation.PathfindArrivalRadius;
-        if (!TryNavigateToward(destination, arrival + 0.35f, arrival))
+        if (!TryNavigateToward(destination, arrival + 0.35f, arrival, skipIfOffMesh: false))
         {
             return false;
         }
@@ -1772,7 +1859,12 @@ public class TreasureHunterService
 
     private void MaybeMount(Vector3 destination)
     {
-        if (ninjaHideRequired || ninjaHide.IsStealthed)
+        if (ninjaHideRequired)
+        {
+            return;
+        }
+
+        if (!ninjaHide.TryEndStealthForTravel())
         {
             return;
         }
@@ -1789,34 +1881,105 @@ public class TreasureHunterService
 
     /// <summary>Path/mount only after Hide is ready when required.</summary>
     /// <returns>False while still preparing Hide (caller should wait).</returns>
-    private bool TryNavigateToward(Vector3 destination, float startPathBeyond, float arrivalRadius)
+    private bool TryNavigateToward(
+        Vector3 destination,
+        float startPathBeyond,
+        float arrivalRadius,
+        bool skipIfOffMesh = true)
     {
         if (!ApplyNinjaHideGate())
         {
             return false;
         }
 
-        // Different floor (basement under you): keep pathing even when 2D looks "arrived".
-        bool needPath = !IsSameFloor(destination)
-                        || player.Position.Distance2D(destination) > startPathBeyond;
-
-        if (needPath && !vnav.IsRunning() && !vnav.IsPathfinding())
+        if (!TreasurePathing.TryResolvePathable(
+                destination,
+                player.Position.Y,
+                vnav,
+                skipIfOffMesh,
+                out Vector3 pathTarget))
         {
-            vnav.PathfindAndMoveCloseTo(destination, false, arrivalRadius);
+            if (vnav.IsRunning() || vnav.IsPathfinding())
+            {
+                vnav.Stop();
+            }
+
+            log.Debug(
+                "Treasure hunt: no navmesh near {Pos} — holding path until stuck recovery",
+                destination);
+            lastNavigateTarget = null;
+            ClearNavigateClosingLatch();
+            MaybeMount(destination);
+            return true;
         }
 
-        MaybeMount(destination);
+        // Navmesh snap can land several yalms from the layout point — finish the walk-in mounted when auto-mount is on.
+        // Do not re-snap here: TryResolvePathable would return the same short landing forever.
+        const float SnapArrivalSlack = 2f;
+        bool snapOffset = destination.Distance2D(pathTarget) > SnapArrivalSlack;
+
+        // New goal — drop the "closing on raw destination" latch from the previous pad/coffer.
+        if (navigateClosingForDestination is not { } closingFor
+            || closingFor.Distance2D(destination) > SnapArrivalSlack)
+        {
+            navigateClosingOnDestination = false;
+            navigateClosingForDestination = destination;
+        }
+
+        Vector3 moveTarget = pathTarget;
+        if (snapOffset)
+        {
+            bool nearSnap = player.Position.Distance2D(pathTarget) <= startPathBeyond + arrivalRadius;
+            if (navigateClosingOnDestination || nearSnap)
+            {
+                // One-way: once we leave the mesh point for the real coffer/pad, stay on it.
+                // Falling back to the snap tug-of-wars when the live object sits off-mesh.
+                navigateClosingOnDestination = true;
+                moveTarget = destination with { Y = player.Position.Y };
+            }
+        }
+
+        // Interact only needs PreferredOpenDistance; demanding PathArrivalRange (1y) walks into
+        // chest / prop collision ("invisible wall") while vnav still claims a path.
+        float moveArrival = MathF.Max(arrivalRadius, startPathBeyond);
+
+        // Same stand-off slack as aetheryte approach: without it, vnav completes at ~moveArrival
+        // while needPath still wants < startPathBeyond, and we re-queue forever (~2.05y spam).
+        const float ArrivalSlack = 0.5f;
+
+        Vector3 arrivalPoint = snapOffset && navigateClosingOnDestination ? destination : moveTarget;
+        float distToArrival = player.Position.Distance2D(arrivalPoint);
+        bool needPath = !IsSameFloor(destination)
+                        || distToArrival > startPathBeyond + ArrivalSlack;
+
+        const float RepathDrift = 1.5f;
+        bool drifted = lastNavigateTarget is not { } last
+                       || last.Distance2D(moveTarget) > RepathDrift;
+
+        // Parked on the issued move point — do not PathfindAndMove again every tick.
+        if (needPath
+            && !drifted
+            && player.Position.Distance2D(moveTarget) <= moveArrival + ArrivalSlack)
+        {
+            needPath = false;
+        }
+
+        if (needPath
+            && ((!vnav.IsRunning() && !vnav.IsPathfinding()) || drifted))
+        {
+            lastNavigateTarget = moveTarget;
+            vnav.PathfindAndMoveCloseTo(moveTarget, false, moveArrival);
+        }
+
+        MaybeMount(moveTarget);
         return true;
     }
 
-    private static bool IsSameFloor(Vector3 a, Vector3 b) =>
-        MathF.Abs(a.Y - b.Y) <= HuntDistances.SameFloorVerticalTolerance;
-
     private bool IsSameFloor(Vector3 destination) =>
-        IsSameFloor(player.Position, destination);
+        HuntDistances.IsSameFloor(player.Position, destination);
 
     /// <summary>
-    ///     When enabled and a knowledge threat is in range: gearset → dismount → Hide before continuing on foot.
+    ///     When enabled and a knowledge threat is in range: gearset → dismount → Hide; remount once the threat is clear.
     ///     Returns false while still preparing (caller should wait).
     /// </summary>
     private bool ApplyNinjaHideGate()
@@ -1914,8 +2077,12 @@ public class TreasureHunterService
     ///     Inside that radius the empty-pad slider applies even if vnav is still running.
     /// </summary>
     private bool IsStillApproachingOutsideTrust(float dist2d) =>
-        dist2d > config.EmptyPadTrustDistance
-        && (vnav.IsPathfinding() || vnav.IsRunning());
+        dist2d > config.EmptyPadTrustDistance;
+
+    /// <summary>Another coffer streamed nearby — region is loaded enough for early empty-skip.</summary>
+    private bool RegionProvesStream(Vector3 layoutDestination) =>
+        player.Position.Distance2D(layoutDestination) <= HuntDistances.EmptyPadEarlySkipRadius
+        && CountTreasuresNear(layoutDestination, HuntDistances.EmptyPadEarlySkipRadius) > 0;
 
     /// <summary>True when the player is close enough to trust that this pad has no live coffer.</summary>
     private bool CanTrustEmptyPad(Vector3 layoutDestination)
@@ -1970,6 +2137,18 @@ public class TreasureHunterService
     {
         emptyPadCandidateNodeId = null;
         emptyPadCandidateSinceUtc = DateTime.MinValue;
+    }
+
+    private void ClearWalkLiveBind()
+    {
+        walkLiveBindNodeId = null;
+        walkLiveBindPosition = null;
+    }
+
+    private void ClearNavigateClosingLatch()
+    {
+        navigateClosingOnDestination = false;
+        navigateClosingForDestination = null;
     }
 
     /// <summary>Rebuild <see cref="tickTreasures"/> once per tick for pad matching.</summary>
@@ -2106,16 +2285,27 @@ public class TreasureHunterService
         bool hasAuthoredPositions,
         bool hasCrowdsourced)
     {
-        if (hasAuthoredPositions
-            && treasureData.Any(d => d.Level <= maxLevel && d.Matches(layout.Id, layout.Position)))
+        if (hasAuthoredPositions || hasCrowdsourced)
         {
-            return true;
+            bool onAuthored = hasAuthoredPositions
+                              && treasureData.Any(d => d.Matches(layout.Id, layout.Position));
+            bool onCrowd = hasCrowdsourced
+                           && liveSpots.Any(c =>
+                               Vector3.DistanceSquared(c.Position, layout.Position)
+                               <= CofferLocationSyncService.MatchRadiusSq);
+            if (!onAuthored && !onCrowd)
+            {
+                return false;
+            }
         }
 
-        return hasCrowdsourced
-               && liveSpots.Any(c =>
-                   Vector3.DistanceSquared(c.Position, layout.Position)
-                   <= CofferLocationSyncService.MatchRadiusSq);
+        if (!TreasureData.TryResolveLevel(layout.Id, layout.Position, treasureData, out int padLevel))
+        {
+            // Shared-only pad with no baked level — only when user left the cap at 50 (no limit).
+            return maxLevel >= 50;
+        }
+
+        return padLevel <= maxLevel;
     }
 
     private bool MatchesHuntCofferFilter(uint sgbId) =>
@@ -2198,7 +2388,10 @@ public class TreasureHunterService
                     continue;
                 }
 
-                bool matchAuthored = hasPositionData && treasureData.Any(d => d.Matches(treasureRowId, position));
+                TreasureData? authored = hasPositionData
+                    ? treasureData.FirstOrDefault(d => d.Matches(treasureRowId, position))
+                    : null;
+                bool matchAuthored = authored != null;
                 bool matchCrowd = hasCrowdsourced
                     && liveSpots.Any(c =>
                         Vector3.DistanceSquared(c.Position, position) <= CofferLocationSyncService.MatchRadiusSq);
@@ -2207,6 +2400,12 @@ public class TreasureHunterService
                 if ((hasPositionData || hasCrowdsourced) && !matchAuthored && !matchCrowd)
                 {
                     continue;
+                }
+
+                // Layout transform Y is often bogus (reveal altitude / inside floor). Prefer baked coords.
+                if (authored?.Position is { } bakedPosition)
+                {
+                    position = bakedPosition;
                 }
 
                 layoutTreasure.Add(new(treasureRowId, position, sgbId));
@@ -2619,6 +2818,8 @@ public class TreasureHunterService
         authoredNodeSegments.Clear();
         authoredNodeOrder.Clear();
         ClearEmptyPadCandidate();
+        ClearWalkLiveBind();
+        ClearNavigateClosingLatch();
         ninjaHide.RestorePreviousGearsetIfNeeded();
         walkViaStepIndex = -1;
         walkViaIndex = 0;

@@ -158,8 +158,9 @@ public class OpenTreasureCofferChain
 
     private void EnsurePathing(Vector3 destination, PathState pathState)
     {
-        // Already inside arrival — do not re-queue move-to every tick (vnav spam in #166).
-        if (player.Position.Distance2D(destination) <= PathArrivalRange)
+        // Stop at interact range — walking into the coffer hits prop collision while the mesh
+        // still draws a green line through it.
+        if (player.Position.Distance2D(destination) <= PreferredOpenDistance)
         {
             StopNav();
             return;
@@ -172,7 +173,7 @@ public class OpenTreasureCofferChain
         if ((!vnav.IsRunning() && !vnav.IsPathfinding()) || drifted)
         {
             pathState.LastTarget = destination;
-            vnav.PathfindAndMoveCloseTo(destination, false, PathArrivalRange);
+            vnav.PathfindAndMoveCloseTo(destination, false, PreferredOpenDistance);
         }
     }
 

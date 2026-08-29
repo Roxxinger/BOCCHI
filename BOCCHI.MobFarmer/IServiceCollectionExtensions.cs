@@ -13,6 +13,7 @@ public static class IServiceCollectionExtensions
     {
         Registry.RegisterAssemblies(typeof(FarmerPhase).Assembly);
 
+        services.AddSingleton<MobFarmerPanelState>();
         services.AddSingleton<IMobScanner, MobScanner>();
         services.AddSingleton<IFarmerCombatController, FarmerCombatController>();
         services.AddSingleton<FarmerPullAssist>();

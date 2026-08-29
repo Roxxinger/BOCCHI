@@ -134,8 +134,10 @@ public class SouthHorn
         new(43, new(-351.222f, 5f, -607.909f), PreferredAethernetId: TheWanderersHaven.Id), // "With Extreme Prejudice"
         new(44, new(460.949f, 97f, -362.86f), PreferredAethernetId: BaseCamp.Id), // "Noise Complaint"
         new(45, new(71.964f, 20f, -544.904f), PreferredAethernetId: TheWanderersHaven.Id), // "Cursed Concern"
-        new(46, new(860.536f, 1.22f, 169.893f), PreferredAethernetId: Eldergrowth.Id,
-            StandRadius: 8f, CombatRadius: 28f), // Eternal Watch — ground ring (elevated MapRange ~560y is rejected)
+        // Eternal Watch — stand on the platform (Y~122). Y~1.22 is under the mesh (poly 0) and
+        // made Illegal Mode cancel/replan forever when the elevated MapRange (~560y) was rejected.
+        new(46, new(860.536f, 122f, 169.893f), PreferredAethernetId: Eldergrowth.Id,
+            StandRadius: 8f, CombatRadius: 28f),
         new(47, new(-570.087f, 97f, -160.04f), PreferredAethernetId: CrystallizedCaverns.Id) // "Flame of Dusk"
     ];
 

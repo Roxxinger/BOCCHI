@@ -10,11 +10,7 @@ public class TranslationLoader(ITranslationRepository translations, UIConfig con
 
     public void OnStart()
     {
-        foreach (UILanguage language in Enum.GetValues<UILanguage>())
-        {
-            translations.LoadFromDirectory("Translations", language.TranslationCode());
-        }
-
+        EnsureLanguageLoaded(config.Language.TranslationCode());
         ApplyConfiguredLanguage();
     }
 
@@ -26,6 +22,7 @@ public class TranslationLoader(ITranslationRepository translations, UIConfig con
     private void ApplyConfiguredLanguage()
     {
         string language = config.Language.TranslationCode();
+        EnsureLanguageLoaded(language);
         if (language == activeLanguage && translations.CurrentLanguage == language)
         {
             return;
@@ -33,5 +30,15 @@ public class TranslationLoader(ITranslationRepository translations, UIConfig con
 
         translations.SetLanguage(language);
         activeLanguage = language;
+    }
+
+    private void EnsureLanguageLoaded(string language)
+    {
+        if (translations.AvailableLanguages.Contains(language))
+        {
+            return;
+        }
+
+        translations.LoadFromDirectory("Translations", language);
     }
 }

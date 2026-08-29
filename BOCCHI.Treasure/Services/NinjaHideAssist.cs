@@ -210,6 +210,40 @@ public sealed class NinjaHideAssist(
         return supportJobs.TryGetCurrent(out SupportJob current) && current.Id == id;
     }
 
+    /// <summary>
+    ///     Drops Hide when travel no longer needs stealth (Hide toggles off).
+    ///     Returns true when not stealthed and safe to mount.
+    /// </summary>
+    public bool TryEndStealthForTravel()
+    {
+        if (!IsStealthed)
+        {
+            return true;
+        }
+
+        if (conditions[ConditionFlag.InCombat] || ECommonsPlayer.IsJumping || IsMounted)
+        {
+            return false;
+        }
+
+        if (!IsNinja)
+        {
+            return true;
+        }
+
+        if (!EzThrottler.Throttle("NinjaHide::EndHide", 750))
+        {
+            return false;
+        }
+
+        if (Hide.CanCast())
+        {
+            Hide.Cast();
+        }
+
+        return !IsStealthed;
+    }
+
     private void TryCastHide()
     {
         if (!IsNinja || IsStealthed || IsMounted || ECommonsPlayer.IsJumping)

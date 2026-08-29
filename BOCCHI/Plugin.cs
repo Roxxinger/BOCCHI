@@ -86,6 +86,8 @@ public sealed class Plugin(IDalamudPluginInterface plugin, IPluginLog logger) : 
         services.AddSingleton<CombatAutorotationFilter>();
         services.AddSingleton<AutoRepairMethodDisplay>();
         services.AddSingleton<NoOpFilter<AutoRepairMethod>>();
+        services.AddSingleton<BossModMovementDelayDisplay>();
+        services.AddSingleton<NoOpFilter<BossModMovementDelay>>();
         services.AddSingleton<BossModOverdodgeDisplay>();
         services.AddSingleton<NoOpFilter<BossModOverdodge>>();
         services.AddSingleton<IFieldRenderer<TriageRaiseJobAttribute>, TriageRaiseJobRenderer>();

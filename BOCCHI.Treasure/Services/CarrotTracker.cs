@@ -1,3 +1,4 @@
+using BOCCHI.Common.Config;
 using BOCCHI.Common.Data;
 using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Services;
@@ -15,14 +16,37 @@ public interface ICarrotTracker
     IReadOnlyList<Carrot> Carrots { get; }
 }
 
-public class CarrotTracker(IObjectTable objects, IPlayer player, IZoneProvider zones) : ICarrotTracker, IOnUpdate
+public class CarrotTracker(
+    IObjectTable objects,
+    IPlayer player,
+    IZoneProvider zones,
+    TreasureConfig config,
+    Func<ICarrotHunter> carrotHunter
+) : ICarrotTracker, IOnUpdate
 {
     public IReadOnlyList<Carrot> Carrots { get; private set; } = [];
+
+    public UpdateLimit UpdateLimit =>
+        new()
+        {
+            Mode = UpdateLimitMode.Milliseconds,
+            Limit = 250
+        };
 
     public void Update()
     {
         // Occult Crescent only.
         if (!zones.GetZone().IsOccultCrescentZone())
+        {
+            if (Carrots.Count > 0)
+            {
+                Carrots = [];
+            }
+
+            return;
+        }
+
+        if (!config.DrawLineToCarrots && !carrotHunter().Running)
         {
             if (Carrots.Count > 0)
             {

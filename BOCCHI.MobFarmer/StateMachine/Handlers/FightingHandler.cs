@@ -8,9 +8,11 @@ using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
 using ECommons.Throttlers;
 using Ocelot.Extensions;
+using Ocelot.Services.Logger;
 using Ocelot.Services.Pathfinding;
 using Ocelot.Services.PlayerState;
 using Ocelot.States.Flow;
+using System.Numerics;
 
 namespace BOCCHI.MobFarmer.StateMachine.Handlers;
 
@@ -27,9 +29,18 @@ public class FightingHandler
     IObjectTable objects,
     IPathfinder pathfinder,
     IZoneProvider zones,
-    IPlayer player
+    IPlayer player,
+    ILogger<FightingHandler> logger
 ) : FlowStateHandler<FarmerPhase>(FarmerPhase.Fighting)
 {
+    private const float HomeArriveRange = 2f;
+
+    private const ulong HomeWatchKey = 0;
+
+    private readonly FarmerWalkStuckAssist stuckAssist = new();
+
+    private bool abandonHomeReturn;
+
     public override void Enter()
     {
         base.Enter();
@@ -41,6 +52,8 @@ public class FightingHandler
     public override void Exit(FarmerPhase next)
     {
         combat.Disable();
+        stuckAssist.Reset();
+        abandonHomeReturn = false;
         base.Exit(next);
     }
 
@@ -86,12 +99,22 @@ public class FightingHandler
 
         if (shouldReturnHome)
         {
+            float homeDistance = player.Position.Distance2D(farmer.StartingPoint);
+
+            if (abandonHomeReturn)
+            {
+                abandonHomeReturn = false;
+                return FarmerPhase.Waiting;
+            }
+
+            if (TryRecoverFromStuck(homeDistance, farmer.StartingPoint))
+            {
+                return null;
+            }
+
             if (pathfinder.GetState() == PathfindingState.Idle)
             {
-                pathfinder.PathfindAndMoveTo(new(farmer.StartingPoint)
-                {
-                    AllowFlying = false
-                });
+                IssuePath(farmer.StartingPoint);
             }
 
             MountWait.TryCastIfNeeded(
@@ -102,10 +125,55 @@ public class FightingHandler
                 movementConfig.PreferredMountId,
                 zones.GetZone().IsInBasecamp());
 
-            return player.Position.Distance2D(farmer.StartingPoint) <= 2f ? FarmerPhase.Waiting : null;
+            return homeDistance <= HomeArriveRange ? FarmerPhase.Waiting : null;
         }
 
         pathfinder.Stop();
+        stuckAssist.Reset();
         return FarmerPhase.Waiting;
+    }
+
+    private bool TryRecoverFromStuck(float distance, Vector3 goal)
+    {
+        FarmerWalkStuckAssist.Recovery recovery = stuckAssist.Tick(
+            HomeWatchKey,
+            distance,
+            goal,
+            pathfinder.GetState());
+
+        switch (recovery)
+        {
+            case FarmerWalkStuckAssist.Recovery.Nudge:
+                logger.Debug("Mob Farmer: stuck returning home — nudging sideways");
+                pathfinder.Stop();
+                IssuePath(FarmerWalkStuckAssist.LateralNudge(player.Position, goal));
+                return true;
+
+            case FarmerWalkStuckAssist.Recovery.RepathGoal:
+                logger.Debug("Mob Farmer: still stuck returning home — repathing");
+                pathfinder.Stop();
+                IssuePath(goal);
+                return true;
+
+            case FarmerWalkStuckAssist.Recovery.GiveUp:
+                logger.Info(
+                    "Mob Farmer: could not return home after stuck recoveries — resuming from here");
+                pathfinder.Stop();
+                stuckAssist.Reset();
+                abandonHomeReturn = true;
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private void IssuePath(Vector3 destination)
+    {
+        pathfinder.PathfindAndMoveTo(new(destination)
+        {
+            AllowFlying = false,
+            DistanceThreshold = HomeArriveRange,
+        });
     }
 }

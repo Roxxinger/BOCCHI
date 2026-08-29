@@ -233,19 +233,34 @@ public class PathCalculator
                 ceShape);
             Vector3 approach = NavigationApproach.GetCriticalEncounterApproachPosition(
                 waitAt, red, ceShape, ceStandRadius, stableSeed: ceId);
-            approach = ResolveCriticalEncounterPathfindTarget(approach, waitAt, player.Position);
-
-            if (CriticalEncounterPathOverrides.TryGetApproachVias(
-                    zone.ZoneId,
-                    ceId,
+            if (TryResolveCriticalEncounterPathfindTarget(
+                    approach,
+                    waitAt,
+                    pathGoal.Position,
                     player.Position,
-                    ceStaging,
-                    out IReadOnlyList<Vector3> vias))
+                    out Vector3 pathTarget))
             {
-                InsertPathfindBeforeLast(resolvedSteps, vias, NavigationConstants.EventArrivalRadius);
-            }
+                if (CriticalEncounterPathOverrides.TryGetApproachVias(
+                        zone.ZoneId,
+                        ceId,
+                        player.Position,
+                        ceStaging,
+                        out IReadOnlyList<Vector3> vias))
+                {
+                    InsertPathfindBeforeLast(resolvedSteps, vias, NavigationConstants.EventArrivalRadius);
+                }
 
-            RewriteLastPathfind(resolvedSteps, approach);
+                RewriteLastPathfind(resolvedSteps, pathTarget);
+            }
+            else
+            {
+                // Keep DirectWalk's last target — rewriting to an off-mesh wait centre
+                // cancel/replans forever (Eternal Watch Y~1.22 under the platform).
+                logger.Debug(
+                    "CE approach off-mesh at {Approach:F0} — keeping planned path toward {Goal:F0}",
+                    approach,
+                    pathGoal.Position);
+            }
         }
 
         int stepsBeforeTeleportOnlyStrip = resolvedSteps.Count;
@@ -362,26 +377,42 @@ public class PathCalculator
             .ToList();
     }
 
-    private Vector3 ResolveCriticalEncounterPathfindTarget(Vector3 approach, Vector3 waitCenter, Vector3 player)
+    /// <summary>
+    ///     Snap the CE stand-off onto the mesh. Never returns an unsnapped off-mesh point —
+    ///     that made PathfindToChain cancel and Illegal Mode replan in a tight loop.
+    /// </summary>
+    private bool TryResolveCriticalEncounterPathfindTarget(
+        Vector3 approach,
+        Vector3 waitCenter,
+        Vector3 pathGoal,
+        Vector3 player,
+        out Vector3 pathTarget)
     {
-        if (TreasurePathing.TrySnapToNavmesh(approach, player.Y, vnav, out Vector3 snapped))
+        if (TreasurePathing.TrySnapToNavmesh(approach, player.Y, vnav, out pathTarget))
         {
-            return snapped;
+            return true;
         }
 
-        if (TreasurePathing.TrySnapToNavmesh(waitCenter, player.Y, vnav, out snapped))
+        if (TreasurePathing.TrySnapToNavmesh(waitCenter, player.Y, vnav, out pathTarget))
         {
             logger.Debug(
                 "CE approach off-mesh at {Approach:F0} — using snapped wait centre {Center:F0}",
                 approach,
-                snapped);
-            return snapped;
+                pathTarget);
+            return true;
         }
 
-        logger.Debug(
-            "CE approach off-mesh at {Approach:F0} — keeping unsnapped target (navmesh may still be loading)",
-            approach);
-        return approach;
+        if (TreasurePathing.TrySnapToNavmesh(pathGoal, player.Y, vnav, out pathTarget))
+        {
+            logger.Debug(
+                "CE approach off-mesh at {Approach:F0} — using snapped path goal {Goal:F0}",
+                approach,
+                pathTarget);
+            return true;
+        }
+
+        pathTarget = default;
+        return false;
     }
 
     private static void InsertPathfindBeforeLast(List<PathStep> steps, IReadOnlyList<Vector3> vias, float range)

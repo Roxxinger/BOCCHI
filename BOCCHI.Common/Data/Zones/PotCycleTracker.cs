@@ -78,6 +78,10 @@ public sealed class PotCycleTracker
 
     private readonly Dictionary<ushort, PotCycleSnapshot> cycles = new();
 
+    private IReadOnlyList<PotCycleSnapshot> knownCyclesCache = [];
+
+    private bool knownCyclesDirty = true;
+
     public PotCycleSnapshot Snapshot
     {
         get
@@ -92,11 +96,22 @@ public sealed class PotCycleTracker
         }
     }
 
-    public IReadOnlyList<PotCycleSnapshot> KnownCycles =>
-        cycles.Values
-            .Where(c => c.HasAnythingToShow)
-            .OrderBy(c => c.TerritoryTypeId)
-            .ToList();
+    public IReadOnlyList<PotCycleSnapshot> KnownCycles
+    {
+        get
+        {
+            if (knownCyclesDirty)
+            {
+                knownCyclesCache = cycles.Values
+                    .Where(c => c.HasAnythingToShow)
+                    .OrderBy(c => c.TerritoryTypeId)
+                    .ToList();
+                knownCyclesDirty = false;
+            }
+
+            return knownCyclesCache;
+        }
+    }
 
     public UpdateLimit UpdateLimit =>
         new()
@@ -127,6 +142,7 @@ public sealed class PotCycleTracker
             : Empty;
 
         cycles[territory] = BuildSnapshot(territory, potFates, active, now, previous);
+        knownCyclesDirty = true;
     }
 
     public void Invalidate(ushort territoryTypeId, string? reason = null)
@@ -135,6 +151,8 @@ public sealed class PotCycleTracker
         {
             return;
         }
+
+        knownCyclesDirty = true;
 
         logger.Debug(
             "[PotCycleTracker] cleared schedule for territory {Territory} ({Reason})",
@@ -189,6 +207,7 @@ public sealed class PotCycleTracker
         };
 
         cycles[territoryTypeId] = applied;
+        knownCyclesDirty = true;
         logger.Debug(
             $"[PotCycleTracker] remote anchor zone={territoryTypeId} pot={potFateId} spawnAt={spawnAt:O} next={opposite?.Id ?? 0} nextSpawnAt={nextSpawn:O}");
         return true;

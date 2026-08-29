@@ -244,6 +244,13 @@ public class AutomationModeGuard
 
     private void SoftSuspendForShopping()
     {
+        // Knowledge-crystal walks (Illegal Mode buff SM or Mob Farmer BuffRunner) sit on the
+        // same North camp pad as the antiquarian — they must not keep owning vnav (#203).
+        if (buffRunner.IsRunning)
+        {
+            buffRunner.Stop();
+        }
+
         if (Automator.IsIllegalMode || Automator.IsCompletionist || Automator.IsPotsAndTreasure)
         {
             Automator.SetSuspendedForShopping(true);

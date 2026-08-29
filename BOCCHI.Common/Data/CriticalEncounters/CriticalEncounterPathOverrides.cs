@@ -5,7 +5,7 @@ namespace BOCCHI.Common.Data.CriticalEncounters;
 
 /// <summary>
 ///     Manual walk vias for CEs where the registration centre sits on a separate navmesh island
-///     (Eternal Watch platform at Y~1.22 vs Eldergrowth at Y~103).
+///     (Eternal Watch platform at Y~122 vs Eldergrowth at Y~108).
 /// </summary>
 public static class CriticalEncounterPathOverrides
 {
@@ -14,7 +14,7 @@ public static class CriticalEncounterPathOverrides
 
     private static readonly Dictionary<(ZoneId Zone, int CeId), Vector3[]> ApproachVias = new()
     {
-        // Eternal Watch — walk the Eldergrowth-side ramp before the low platform ring.
+        // Eternal Watch — Eldergrowth-side approach before the platform stand.
         [(ZoneId.SouthHorn, 46)] =
         [
             new(606.4641f, 108.07402f, 184.8517f),

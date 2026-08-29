@@ -10,6 +10,8 @@ using BOCCHI.MobFarmer.Services;
 using BOCCHI.Treasure.ChainRecipes;
 using BOCCHI.Treasure.Hunt;
 using BOCCHI.Treasure.Services;
+using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Plugin.Services;
 using Ocelot.Chain;
 using Ocelot.Lifecycle;
 
@@ -32,6 +34,8 @@ public sealed class MobFarmerYieldService
     IChainManager chainManager,
     IChainFactory chains,
     ISupportJobFactory supportJobs,
+    ISupportJobChanger supportJobChanger,
+    ICondition conditions,
     MobFarmerConfig farmerConfig,
     PotsConfig potsConfig,
     BuffConfig buffConfig,
@@ -55,6 +59,9 @@ public sealed class MobFarmerYieldService
     private bool sawRunning;
 
     private Task<ChainResult>? sightChain;
+
+    /// <summary>Phantom job to restore after Sight when the chain fails before its restore step.</summary>
+    private SupportJobId? pendingSightRestoreJob;
 
     private TimeSpan HuntIntervalMinutes =>
         TimeSpan.FromMinutes(Math.Max(1, farmerConfig.TreasureHuntIntervalMinutes));
@@ -138,7 +145,6 @@ public sealed class MobFarmerYieldService
         {
             farmer.SetSuspended(true, FarmerYieldReason.TreasureSight);
             startedSight = true;
-            nextSightAt = DateTimeOffset.UtcNow + SightIntervalMinutes;
         }
     }
 
@@ -156,10 +162,15 @@ public sealed class MobFarmerYieldService
                 break;
 
             case FarmerYieldReason.TreasureSight:
-                if (startedSight && sightChain is { IsCompleted: true })
+                if (startedSight && sightChain is { IsCompleted: true } task)
                 {
                     startedSight = false;
+                    bool success = task.Result.IsSuccess;
                     sightChain = null;
+                    TryRestorePendingSightJob();
+                    pendingSightRestoreJob = null;
+                    nextSightAt = DateTimeOffset.UtcNow
+                                    + (success ? SightIntervalMinutes : TimeSpan.FromMinutes(1));
                     if (farmer.Suspended)
                     {
                         farmer.SetSuspended(false);
@@ -190,7 +201,17 @@ public sealed class MobFarmerYieldService
                 break;
 
             case FarmerYieldReason.Shopping:
-                // ShoppingService resumes via NotifyShoppingEnded.
+                // Shopping may have interrupted a crystal-buff yield — clear the latch so we
+                // do not think buffs are still in progress after NotifyShoppingEnded (#203).
+                if (startedBuffs)
+                {
+                    startedBuffs = false;
+                    if (buffRunner.IsRunning)
+                    {
+                        buffRunner.Stop();
+                    }
+                }
+
                 break;
         }
     }
@@ -210,6 +231,8 @@ public sealed class MobFarmerYieldService
             startedSight = false;
             chainManager.CancelWhere(name => name.StartsWith("MobFarmer::TreasureSight", StringComparison.Ordinal));
             sightChain = null;
+            TryRestorePendingSightJob();
+            pendingSightRestoreJob = null;
         }
 
         if (startedHunt)
@@ -250,6 +273,21 @@ public sealed class MobFarmerYieldService
             return false;
         }
 
+        // Do not start the chain until dismount + job-swap gates pass — otherwise a step
+        // spins for 15s (Dismount / ToFreelancer / RestoreJob) and the farm sits idle.
+        if (DismountAssist.TryDismount(conditions)
+            || PhantomJobChangeGate.IsBlocked(conditions))
+        {
+            return false;
+        }
+
+        pendingSightRestoreJob = null;
+        if (supportJobs.TryGetCurrent(out SupportJob current)
+            && current.Id != SupportJobId.PhantomFreelancer)
+        {
+            pendingSightRestoreJob = current.Id;
+        }
+
         // Do not gate on fill % or an existing Sight reading — this yield is how Mob Farmer
         // refreshes counts (and the first cast of a session). Timed Treasure Hunt still uses
         // TreasureHuntFillGate.
@@ -257,6 +295,22 @@ public sealed class MobFarmerYieldService
             chains.Create("MobFarmer::TreasureSight")
                 .Then<HuntTreasureSightChain>());
         return true;
+    }
+
+    private void TryRestorePendingSightJob()
+    {
+        if (pendingSightRestoreJob is not { } id)
+        {
+            return;
+        }
+
+        if (!supportJobs.TryGetCurrent(out SupportJob current)
+            || current.Id != SupportJobId.PhantomFreelancer)
+        {
+            return;
+        }
+
+        supportJobChanger.Change(id);
     }
 
     private bool NeedsPotWork()

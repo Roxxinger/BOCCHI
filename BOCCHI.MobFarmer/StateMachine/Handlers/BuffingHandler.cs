@@ -40,6 +40,8 @@ public class BuffingHandler
 
     private bool counterstanceDone;
 
+    private bool counterstanceIssued;
+
     private bool sprintDone;
 
     private DateTimeOffset? stepWaitStartedUtc;
@@ -53,6 +55,7 @@ public class BuffingHandler
         bellDone = false;
         respiteDone = false;
         counterstanceDone = false;
+        counterstanceIssued = false;
         sprintDone = false;
         stepWaitStartedUtc = null;
         jobToRestore = null;
@@ -127,10 +130,9 @@ public class BuffingHandler
             return null;
         }
 
-        if (Actions.PhantomActionII.CanCast())
+        if (Actions.PhantomActionII.CanCast() && Actions.PhantomActionII.Cast())
         {
-            Actions.PhantomActionII.Cast();
-            stepWaitStartedUtc = DateTimeOffset.UtcNow;
+            stepWaitStartedUtc ??= DateTimeOffset.UtcNow;
             return null;
         }
 
@@ -206,23 +208,29 @@ public class BuffingHandler
 
             if (respiteCd > 0f)
             {
+                // Cast already went out — GCD/shared CD ticking is enough to finish.
+                if (stepWaitStartedUtc is not null)
+                {
+                    respiteDone = true;
+                    stepWaitStartedUtc = null;
+                    return FarmerPhase.Gathering;
+                }
+
                 return null;
             }
 
-            if (Actions.PhantomActionIII.CanCast())
+            if (Actions.PhantomActionIII.CanCast() && Actions.PhantomActionIII.Cast())
             {
-                Actions.PhantomActionIII.Cast();
                 stepWaitStartedUtc ??= DateTimeOffset.UtcNow;
                 return null;
             }
 
-            if (DateTimeOffset.UtcNow - (stepWaitStartedUtc ?? DateTimeOffset.UtcNow) < StepGiveUp)
+            if (stepWaitStartedUtc is not null
+                && DateTimeOffset.UtcNow - stepWaitStartedUtc.Value >= StepGiveUp)
             {
-                return null;
+                respiteDone = true;
+                stepWaitStartedUtc = null;
             }
-
-            respiteDone = true;
-            stepWaitStartedUtc = null;
         }
 
         return FarmerPhase.Gathering;
@@ -235,6 +243,21 @@ public class BuffingHandler
         {
             counterstanceDone = true;
             return FarmerPhase.Gathering;
+        }
+
+        // Already issued this pull — wait for Fleetfooted or give up. Counterstance is
+        // GCD-only; re-casting every GCD when the buff check fails is the spam bug.
+        if (stepWaitStartedUtc is not null && counterstanceIssued)
+        {
+            if (HasFleetfooted() || DateTimeOffset.UtcNow - stepWaitStartedUtc.Value >= StepGiveUp)
+            {
+                counterstanceDone = true;
+                counterstanceIssued = false;
+                stepWaitStartedUtc = null;
+                return FarmerPhase.Gathering;
+            }
+
+            return null;
         }
 
         float cd = Counterstance.GetRecastTime();
@@ -259,18 +282,16 @@ public class BuffingHandler
             return null;
         }
 
-        if (Actions.PhantomActionIII.CanCast())
-        {
-            Actions.PhantomActionIII.Cast();
-            stepWaitStartedUtc = DateTimeOffset.UtcNow;
-            return null;
-        }
-
-        if (HasFleetfooted() || DateTimeOffset.UtcNow - (stepWaitStartedUtc ?? DateTimeOffset.UtcNow) >= StepGiveUp)
+        if (HasFleetfooted())
         {
             counterstanceDone = true;
-            stepWaitStartedUtc = null;
             return FarmerPhase.Gathering;
+        }
+
+        if (Actions.PhantomActionIII.CanCast() && Actions.PhantomActionIII.Cast())
+        {
+            counterstanceIssued = true;
+            stepWaitStartedUtc = DateTimeOffset.UtcNow;
         }
 
         return null;

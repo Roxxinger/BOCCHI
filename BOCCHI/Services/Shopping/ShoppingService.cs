@@ -71,6 +71,13 @@ public sealed class ShoppingService
     private Task<ChainResult>? teleportChain;
     private readonly HashSet<uint> skippedMissingRows = [];
 
+    private const float VendorInteractRange = 3.5f;
+
+    /// <summary>Stop inside interact range — must be &lt; <see cref="VendorInteractRange"/>.</summary>
+    private const float VendorPathArrival = 2f;
+
+    private Vector3? approachTarget;
+
     public UpdateLimit UpdateLimit =>
         new()
         {
@@ -191,18 +198,26 @@ public sealed class ShoppingService
         }
 
         float distance = npc.Position.Distance2D(player.Position);
-        if (distance > 3.5f)
+        if (distance > VendorInteractRange)
         {
             phase = Phase.Approaching;
             if (vnav.IsNavmeshReady() && EzThrottler.Throttle("Shopping::Path", 1000))
             {
-                Vector3 dest = npc.Position.GetApproachPosition(player.Position, 2.5f);
-                vnav.PathfindAndMoveCloseTo(dest, false, 1.5f);
+                // Path to the vendor (stable). A rotating GetApproachPosition stand-off near the
+                // North camp crystal fought buff walks and never settled inside interact (#203).
+                if (approachTarget is not { } held
+                    || held.Distance2D(npc.Position) > VendorInteractRange)
+                {
+                    approachTarget = npc.Position;
+                }
+
+                vnav.PathfindAndMoveCloseTo(approachTarget.Value, false, VendorPathArrival);
             }
 
             return;
         }
 
+        approachTarget = null;
         vnav.Stop();
         phase = Phase.OpeningMenu;
         unsafe
@@ -249,6 +264,7 @@ public sealed class ShoppingService
     {
         phase = Phase.Idle;
         openedMenuIndex = null;
+        approachTarget = null;
         skippedMissingRows.Clear();
         teleportChain = null;
         chainManager.CancelWhere(name => name.StartsWith("Shopping::", StringComparison.Ordinal));

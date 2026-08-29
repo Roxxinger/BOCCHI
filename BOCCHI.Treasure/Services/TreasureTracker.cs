@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.RegularExpressions;
+using BOCCHI.Common.Config;
 using BOCCHI.Common.Data.Zones;
 using BOCCHI.Common.Services;
 using BOCCHI.Treasure.Data;
@@ -32,9 +33,19 @@ public class TreasureTracker : ITreasureTracker, IOnUpdate, IDisposable
     private readonly IPlayer player;
     private readonly IZoneProvider zones;
     private readonly CofferLocationSyncService cofferLocations;
+    private readonly TreasureConfig config;
+    private readonly Func<ITreasureHunter> hunter;
+    private readonly Func<ICarrotHunter> carrotHunter;
 
     private DateTime lastParseWideText = DateTime.MinValue;
     private List<TreasureCoffer> treasures = [];
+
+    public UpdateLimit UpdateLimit =>
+        new()
+        {
+            Mode = UpdateLimitMode.Milliseconds,
+            Limit = 250
+        };
 
     public TreasureTracker(
         IObjectTable objects,
@@ -43,7 +54,10 @@ public class TreasureTracker : ITreasureTracker, IOnUpdate, IDisposable
         IDataManager data,
         IZoneProvider zones,
         IPlayer player,
-        CofferLocationSyncService cofferLocations
+        CofferLocationSyncService cofferLocations,
+        TreasureConfig config,
+        Func<ITreasureHunter> hunter,
+        Func<ICarrotHunter> carrotHunter
     )
     {
         this.objects = objects;
@@ -53,6 +67,9 @@ public class TreasureTracker : ITreasureTracker, IOnUpdate, IDisposable
         this.zones = zones;
         this.player = player;
         this.cofferLocations = cofferLocations;
+        this.config = config;
+        this.hunter = hunter;
+        this.carrotHunter = carrotHunter;
         addonLifecycle.RegisterListener(AddonEvent.PostDraw, "_WideText", OnWideTextPostDraw);
         // Chat is more reliable than scraping _WideText (empty first frames / cooldown misses).
         chat.LogMessage += OnChatLogMessage;
@@ -68,6 +85,16 @@ public class TreasureTracker : ITreasureTracker, IOnUpdate, IDisposable
     {
         // Occult Crescent only.
         if (!zones.GetZone().IsOccultCrescentZone())
+        {
+            if (treasures.Count > 0)
+            {
+                treasures.Clear();
+            }
+
+            return;
+        }
+
+        if (!NeedsLiveCofferScan())
         {
             if (treasures.Count > 0)
             {
@@ -258,4 +285,10 @@ public class TreasureTracker : ITreasureTracker, IOnUpdate, IDisposable
         LastCountUpdateUtc = DateTime.UtcNow;
         SurveyRevision++;
     }
+
+    private bool NeedsLiveCofferScan() =>
+        config.DrawLineToBronzeChests
+        || config.DrawLineToSilverChests
+        || hunter().Running
+        || carrotHunter().Running;
 }

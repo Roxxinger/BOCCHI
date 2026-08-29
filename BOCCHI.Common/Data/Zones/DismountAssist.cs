@@ -29,6 +29,16 @@ public static class DismountAssist
     }
 
     /// <summary>
+    ///     Mid mount / dismount animation (MountOrOrnamentTransition, Mounting, Mounting71).
+    ///     Flag.Mounted can still be false here — callers that treated that as "on foot" raced
+    ///     Treasure Sight and finished the cast wait without ever issuing Occult Treasuresight.
+    /// </summary>
+    public static bool IsMountTransition(ICondition conditions) =>
+        conditions[ConditionFlag.Mounting]
+        || conditions[ConditionFlag.Mounting71]
+        || conditions[ConditionFlag.MountOrOrnamentTransition];
+
+    /// <summary>
     ///     If mounted, mounting, or still in the dismount jump/landing, try to dismount / wait.
     ///     Returns true when the caller should wait (not act yet).
     /// </summary>
@@ -40,9 +50,15 @@ public static class DismountAssist
     /// </param>
     public static bool TryDismount(ICondition conditions, System.Action<string>? report)
     {
+        // Wait out mount-up / dismount animation without casting Dismount into a mount-in-progress.
+        if (IsMountTransition(conditions))
+        {
+            return true;
+        }
+
         bool mounted = IsMounted(conditions);
 
-        if (!mounted && !conditions[ConditionFlag.Mounting])
+        if (!mounted)
         {
             // On foot already. Dismounting leaves a jump/landing beat and actions fail with
             // "while jumping", so that is the only thing left to wait out.
@@ -53,8 +69,7 @@ public static class DismountAssist
         // bailing here meant a character that never touched down never dismounted at all.
         // No CanCast() gate — GetActionStatus reports non-zero for this general action, and the
         // paths that actually work (UnmountStep) only check IsMounted.
-        if (!conditions[ConditionFlag.Mounting]
-            && EzThrottler.Throttle("DismountAssist::Dismount", 250))
+        if (EzThrottler.Throttle("DismountAssist::Dismount", 250))
         {
             bool sent = Actions.Dismount.Cast();
             report?.Invoke(

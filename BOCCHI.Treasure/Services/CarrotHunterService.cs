@@ -337,8 +337,7 @@ public sealed class CarrotHunterService
 
         Vector3 destination = currentTargetPosition;
         float localDist = player.Position.Distance2D(destination);
-        bool wrongFloor = MathF.Abs(player.Position.Y - destination.Y)
-            > HuntDistances.SameFloorVerticalTolerance;
+        bool wrongFloor = !HuntDistances.IsSameFloor(player.Position, destination);
         // Keep Return for pad↔pad tour hops — and when 2D looks close but we are on the
         // wrong shelf (cliff / ridge). Direct then climbs into mesh ("underground").
         bool allowReturn = currentLiveCarrotId == null
@@ -868,7 +867,7 @@ public sealed class CarrotHunterService
             }
 
             // Already on the island and closer to the carrot than this via — don't backtrack.
-            if (MathF.Abs(player.Position.Y - destination.Y) <= HuntDistances.SameFloorVerticalTolerance
+            if (HuntDistances.IsSameFloor(player.Position, destination)
                 && player.Position.Distance2D(destination) <= player.Position.Distance2D(via))
             {
                 walkViaIndex = walkVias.Count;
@@ -1232,8 +1231,7 @@ public sealed class CarrotHunterService
         arrival = null;
 
         float directCost = from.Distance2D(to);
-        bool directCrossesFloors = MathF.Abs(from.Y - to.Y)
-            > HuntDistances.SameFloorVerticalTolerance;
+        bool directCrossesFloors = !HuntDistances.IsSameFloor(from, to);
         // 2D distance ignores cliffs — do not prefer Direct when the pad is on another shelf
         // until aethernet/Return have had a chance to win.
         bestCost = directCrossesFloors ? float.PositiveInfinity : directCost;
@@ -1811,8 +1809,7 @@ public sealed class CarrotHunterService
             stuckNudgeIssued = false;
 
             // Wrong shelf: repathing Direct climbs the same cliff. Re-pick Return/aethernet.
-            if (MathF.Abs(player.Position.Y - currentTargetPosition.Y)
-                > HuntDistances.SameFloorVerticalTolerance)
+            if (!HuntDistances.IsSameFloor(player.Position, currentTargetPosition))
             {
                 log.Debug(
                     "Carrot hunt: still stuck on authored {Id} (wrong floor) — re-routing via camp/aethernet",
@@ -1864,7 +1861,7 @@ public sealed class CarrotHunterService
         }
 
         // Still climbing — 2D looks close. Stay mounted.
-        if (MathF.Abs(player.Position.Y - currentTargetPosition.Y) > HuntDistances.SameFloorVerticalTolerance)
+        if (!HuntDistances.IsSameFloor(player.Position, currentTargetPosition))
         {
             return false;
         }

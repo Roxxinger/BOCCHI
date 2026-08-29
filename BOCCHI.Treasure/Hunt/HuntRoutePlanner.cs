@@ -23,8 +23,11 @@ public interface IHuntRoutePlanner
     /// <summary>First authored pad of a segment, or null when the id is unknown.</summary>
     uint? TryGetSegmentFirstNode(string segmentId);
 
-    /// <summary>Return to camp, then hop to the cheapest shard for <paramref name="toNodeId"/>.</summary>
-    List<HuntPathfinderStep> BuildEntryLeg(uint toNodeId);
+    /// <summary>
+    ///     Camp entry to <paramref name="toNodeId"/>: Return (unless already in camp), then best
+    ///     aethernet + walk, or walk from camp when that is cheaper.
+    /// </summary>
+    List<HuntPathfinderStep> BuildEntryLeg(uint toNodeId, bool alreadyInCamp = false);
 
     /// <param name="preferStartNodes">
     ///     When set, visit these remaining pads first (closest Nearby peel-off chain), then the rest.
@@ -579,9 +582,11 @@ public abstract class HuntRoutePlanner
     }
 
     /// <summary>
-    ///     Return to camp, then hop to the cheapest aethernet for the next pad (or walk from camp).
+    ///     Entry to the next pad from camp: optional Return, then best aethernet + walk (or walk
+    ///     from camp when cheaper). When <paramref name="alreadyInCamp"/>, skip Return so a start
+    ///     at base still uses aethernet instead of walking the whole map.
     /// </summary>
-    public List<HuntPathfinderStep> BuildEntryLeg(uint toId)
+    public List<HuntPathfinderStep> BuildEntryLeg(uint toId, bool alreadyInCamp = false)
     {
         HuntAethernet baseCamp = BaseCampAethernet;
 
@@ -619,21 +624,19 @@ public abstract class HuntRoutePlanner
             bestShard = aethernet;
         }
 
-        if (bestShard is not HuntAethernet shard)
+        List<HuntPathfinderStep> steps = [];
+        if (!alreadyInCamp)
         {
-            return
-            [
-                HuntPathfinderStep.ReturnToBaseCamp(),
-                HuntPathfinderStep.WalkToDestination(toId)
-            ];
+            steps.Add(HuntPathfinderStep.ReturnToBaseCamp());
         }
 
-        return
-        [
-            HuntPathfinderStep.ReturnToBaseCamp(),
-            HuntPathfinderStep.TeleportToAethernet(shard),
-            HuntPathfinderStep.WalkToDestination(toId)
-        ];
+        if (bestShard is HuntAethernet shard)
+        {
+            steps.Add(HuntPathfinderStep.TeleportToAethernet(shard));
+        }
+
+        steps.Add(HuntPathfinderStep.WalkToDestination(toId));
+        return steps;
     }
 
     private static bool TryParseAethernet(string? name, out HuntAethernet aethernet)

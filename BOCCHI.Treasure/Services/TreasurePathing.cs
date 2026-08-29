@@ -69,6 +69,31 @@ public static class TreasurePathing
     }
 
     /// <summary>
+    ///     Mesh point we walk to. Authored pads with no same-floor polygon are skipped when
+    ///     <paramref name="skipIfOffMesh"/> is set; live coffers still get a Y rewrite on failure.
+    /// </summary>
+    public static bool TryResolvePathable(
+        Vector3 destination,
+        float playerY,
+        IVNavmeshIpc vnav,
+        bool skipIfOffMesh,
+        out Vector3 pathable)
+    {
+        if (TrySnapToNavmesh(destination, playerY, vnav, out pathable))
+        {
+            return true;
+        }
+
+        if (skipIfOffMesh)
+        {
+            return false;
+        }
+
+        pathable = PathablePosition(destination, playerY);
+        return true;
+    }
+
+    /// <summary>
     ///     Nearest-mesh can land on a cliff or the floor under an island. That is not this coffer.
     /// </summary>
     private static bool IsNearSeed(Vector3 seed, Vector3 snapped) =>

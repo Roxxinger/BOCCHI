@@ -39,7 +39,10 @@ public static class MountWait
             return true;
         }
 
-        if (conditions[ConditionFlag.Mounted] || conditions[ConditionFlag.Mounting])
+        if (conditions[ConditionFlag.Mounted]
+            || conditions[ConditionFlag.Mounting]
+            || conditions[ConditionFlag.Mounting71]
+            || conditions[ConditionFlag.MountOrOrnamentTransition])
         {
             return true;
         }

@@ -30,6 +30,16 @@ public class BossModOverdodgeDisplay : IEnumDisplay<BossModOverdodge>
     };
 }
 
+public class BossModMovementDelayDisplay : IEnumDisplay<BossModMovementDelay>
+{
+    public string Display(BossModMovementDelay value) => value switch
+    {
+        BossModMovementDelay.Short => "Short",
+        BossModMovementDelay.Long => "Long",
+        _ => "None",
+    };
+}
+
 public static class BossModMovement
 {
     public const float MinRange = 1.1f;

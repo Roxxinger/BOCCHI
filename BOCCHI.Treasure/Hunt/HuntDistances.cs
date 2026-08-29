@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace BOCCHI.Treasure.Hunt;
 
 /// <summary>
@@ -37,6 +39,9 @@ public static class HuntDistances
     /// above a basement coffer looks “on the pad” in 2D and the hunt turns around.
     /// </summary>
     public const float SameFloorVerticalTolerance = 12f;
+
+    public static bool IsSameFloor(Vector3 a, Vector3 b) =>
+        MathF.Abs(a.Y - b.Y) <= SameFloorVerticalTolerance;
 
     /// <summary>
     ///     Carrot Hunt: trust empty farther out when another live carrot proves the region

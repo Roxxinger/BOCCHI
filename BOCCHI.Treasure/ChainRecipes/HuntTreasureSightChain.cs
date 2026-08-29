@@ -1,4 +1,5 @@
 using BOCCHI.Common.Data.SupportJobs;
+using BOCCHI.Common.Data.Zones;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin.Services;
 using ECommons.Throttlers;
@@ -23,37 +24,55 @@ public class HuntTreasureSightChain
     IObjectTable objects
 ) : ChainRecipe(chains)
 {
+    private static readonly TimeSpan SightCooldownGrace = TimeSpan.FromSeconds(4);
+
     public override string Name => "Hunt Treasure Sight";
+
+    private SupportJobId? restoreAfterSight;
+
+    private bool restoreCaptured;
+
+    private bool sightCastSkippedCd;
 
     protected override IChain Compose(IChain chain)
     {
-        SupportJobId? restoreId = null;
-        if (supportJobs.TryGetCurrent(out SupportJob current)
-            && current.Id != SupportJobId.PhantomFreelancer)
-        {
-            restoreId = current.Id;
-        }
+        restoreAfterSight = null;
+        restoreCaptured = false;
+        sightCastSkippedCd = false;
 
         SupportJob freelancer = supportJobs.Create(SupportJobId.PhantomFreelancer);
         var castState = new CastState();
 
         return chain
             .UseMiddleware<LogChainMiddleware>()
+            .UseMiddleware(new RestorePhantomJobMiddleware(this))
             .UseStepMiddleware<LogStepMiddleware>()
             .UseStepMiddleware<RunOnMainThreadMiddleware>()
             .IfThen(
-                _ => !SupportJobTreasureSight.CanCast(supportJobs),
+                _ =>
+                {
+                    CaptureRestoreIfNeeded();
+                    return !SupportJobTreasureSight.CanCast(supportJobs);
+                },
                 _ => ValueTask.FromResult(StepResult.Break()),
                 "HuntTreasureSight::FreelancerTooLow"
             )
             .WaitUntil(
-                _ => ValueTask.FromResult(TryDismount()),
+                _ =>
+                {
+                    CaptureRestoreIfNeeded();
+                    return ValueTask.FromResult(IsOnFoot());
+                },
                 TimeSpan.FromSeconds(15),
                 TimeSpan.FromMilliseconds(250),
                 "HuntTreasureSight::Dismount"
             )
             .WaitUntil(
-                _ => ValueTask.FromResult(TryBecomeJob(SupportJobId.PhantomFreelancer, freelancer.StatusId)),
+                _ =>
+                {
+                    CaptureRestoreIfNeeded();
+                    return ValueTask.FromResult(TryBecomeJob(SupportJobId.PhantomFreelancer, freelancer.StatusId));
+                },
                 TimeSpan.FromSeconds(15),
                 TimeSpan.FromMilliseconds(250),
                 "HuntTreasureSight::ToFreelancer"
@@ -65,28 +84,29 @@ public class HuntTreasureSightChain
                 "HuntTreasureSight::Cast"
             )
             .WaitUntil(
-                _ => ValueTask.FromResult(TryRestore(restoreId)),
+                _ => ValueTask.FromResult(TryRestore(restoreAfterSight)),
                 TimeSpan.FromSeconds(15),
                 TimeSpan.FromMilliseconds(250),
                 "HuntTreasureSight::RestoreJob"
             );
     }
 
-    private bool TryDismount()
+    /// <summary>Ready when on foot and not in the dismount landing beat.</summary>
+    private bool IsOnFoot() => !DismountAssist.TryDismount(conditions);
+
+    private void CaptureRestoreIfNeeded()
     {
-        if (!conditions[ConditionFlag.Mounted] && !conditions[ConditionFlag.Mounting])
+        if (restoreCaptured)
         {
-            return true;
+            return;
         }
 
-        if (!conditions[ConditionFlag.Mounting]
-            && EzThrottler.Throttle("HuntTreasureSight::Dismount", 500)
-            && Actions.Dismount.CanCast())
+        restoreCaptured = true;
+        if (supportJobs.TryGetCurrent(out SupportJob current)
+            && current.Id != SupportJobId.PhantomFreelancer)
         {
-            Actions.Dismount.Cast();
+            restoreAfterSight = current.Id;
         }
-
-        return false;
     }
 
     private bool TryBecomeJob(SupportJobId id, uint statusId)
@@ -99,6 +119,11 @@ public class HuntTreasureSightChain
         if (supportJobs.TryGetCurrent(out SupportJob current) && current.Id == id)
         {
             return true;
+        }
+
+        if (PhantomJobChangeGate.IsBlocked(conditions))
+        {
+            return false;
         }
 
         if (!EzThrottler.Throttle($"HuntTreasureSight::Change::{id}", 750))
@@ -120,9 +145,12 @@ public class HuntTreasureSightChain
     /// </summary>
     private bool TryCastSight(CastState state)
     {
+        CaptureRestoreIfNeeded();
+
         if (IsCasting())
         {
             state.SawCasting = true;
+            state.CdBlockedSinceUtc = null;
             return false;
         }
 
@@ -132,6 +160,12 @@ public class HuntTreasureSightChain
             return true;
         }
 
+        // Remount / mount transition after Dismount step — wait instead of burning the cast window.
+        if (DismountAssist.TryDismount(conditions))
+        {
+            return false;
+        }
+
         if (!EzThrottler.Throttle("HuntTreasureSight::Cast", 500))
         {
             return false;
@@ -139,8 +173,18 @@ public class HuntTreasureSightChain
 
         if (!Actions.PhantomActionII.CanCast())
         {
+            state.CdBlockedSinceUtc ??= DateTime.UtcNow;
+            if (DateTime.UtcNow - state.CdBlockedSinceUtc.Value >= SightCooldownGrace)
+            {
+                // Shared action CD (buffs, etc.) — skip the cast but still run restore.
+                sightCastSkippedCd = true;
+                return true;
+            }
+
             return false;
         }
+
+        state.CdBlockedSinceUtc = null;
 
         if (Actions.PhantomActionII.Cast())
         {
@@ -170,8 +214,49 @@ public class HuntTreasureSightChain
         return TryBecomeJob(id, job.StatusId);
     }
 
+    private void TryRestorePhantomJob()
+    {
+        if (restoreAfterSight is not { } id)
+        {
+            return;
+        }
+
+        if (supportJobs.TryGetCurrent(out SupportJob current) && current.Id != SupportJobId.PhantomFreelancer)
+        {
+            return;
+        }
+
+        SupportJob job = supportJobs.Create(id);
+        TryBecomeJob(id, job.StatusId);
+    }
+
+    private sealed class RestorePhantomJobMiddleware(HuntTreasureSightChain owner) : IChainMiddleware
+    {
+        public async Task<ChainResult> InvokeAsync(IChainContext context, ChainMiddlewareDelegate next)
+        {
+            ChainResult result;
+            try
+            {
+                result = await next();
+            }
+            finally
+            {
+                owner.TryRestorePhantomJob();
+            }
+
+            if (owner.sightCastSkippedCd)
+            {
+                return ChainResult.Failure("Treasure Sight on cooldown");
+            }
+
+            return result;
+        }
+    }
+
     private sealed class CastState
     {
+        public DateTime? CdBlockedSinceUtc;
+
         public bool Issued;
 
         public bool SawCasting;
