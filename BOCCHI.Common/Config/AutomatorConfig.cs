@@ -123,15 +123,39 @@ public class AutomatorConfig : IAutoConfig
     public int TreasureSightRecastIntervalSeconds { get; set; } = 120;
 
     /// <summary>Max random idle before Return; 0 delay when Treasure Sight is latched.</summary>
-    [IntRange(2, 60, Order = 16, Section = "delays")]
-    public int MaxRemoteIdleTimeSeconds { get; set; } = 10;
+        [IntRange(2, 60, Order = 16, Section = "delays")]
+        public int MaxRemoteIdleTimeSeconds { get; set; } = 10;
 
-    /// <summary>
-    ///     Upper bound (seconds) for a random 0..max idle at camp before teleporting to a FATE/CE.
-    ///     0 = leave immediately.
-    /// </summary>
-    [IntRange(0, 60, Order = 17, Section = "delays")]
-    public int MaxBaseTeleportDelaySeconds { get; set; } = 0;
+        /// <summary>
+        ///     Random minimum for MaxRemoteIdleTimeSeconds when randomization is enabled.
+        /// </summary>
+        [IntRange(2, 60, Order = 33, Section = "randomization")]
+        public int RandomMaxRemoteIdleTimeMin { get; set; } = 2;
+
+        /// <summary>
+        ///     Random maximum for MaxRemoteIdleTimeSeconds when randomization is enabled.
+        /// </summary>
+        [IntRange(2, 60, Order = 34, Section = "randomization")]
+        public int RandomMaxRemoteIdleTimeMax { get; set; } = 15;
+
+        /// <summary>
+        ///     Upper bound (seconds) for a random 0..max idle at camp before teleporting to a FATE/CE.
+        ///     0 = leave immediately.
+        /// </summary>
+        [IntRange(0, 60, Order = 17, Section = "delays")]
+        public int MaxBaseTeleportDelaySeconds { get; set; } = 0;
+
+        /// <summary>
+        ///     Random minimum for MaxBaseTeleportDelaySeconds when randomization is enabled.
+        /// </summary>
+        [IntRange(0, 60, Order = 35, Section = "randomization")]
+        public int RandomMaxBaseTeleportDelayMin { get; set; } = 0;
+
+        /// <summary>
+        ///     Random maximum for MaxBaseTeleportDelaySeconds when randomization is enabled.
+        /// </summary>
+        [IntRange(0, 60, Order = 36, Section = "randomization")]
+        public int RandomMaxBaseTeleportDelayMax { get; set; } = 15;
 
     /// <summary>
     ///     Repair equipped gear when any piece falls to or below this condition (%).
@@ -244,14 +268,24 @@ public class AutomatorConfig : IAutoConfig
         var rangedMax = Math.Clamp(RandomRangedRangeMax, rangedMin, 30f);
 
         if (isMelee)
-        {
-            var range = (double)meleeMin + rng.NextDouble() * (double)(meleeMax - meleeMin);
-            BossModMaxDistanceMelee = (float)Math.Round(range, 1);
+                {
+                    var range = (double)meleeMin + rng.NextDouble() * (double)(meleeMax - meleeMin);
+                    BossModMaxDistanceMelee = (float)Math.Round(range, 1);
+                }
+                else
+                {
+                    var range = (double)rangedMin + rng.NextDouble() * (double)(rangedMax - rangedMin);
+                    BossModMaxDistanceRanged = (float)Math.Round(range, 1);
+                }
+
+                // Randomize MaxRemoteIdleTimeSeconds (Max wait before Return)
+                var remoteIdleMin = Math.Clamp(RandomMaxRemoteIdleTimeMin, 2, 60);
+                var remoteIdleMax = Math.Clamp(RandomMaxRemoteIdleTimeMax, remoteIdleMin, 60);
+                MaxRemoteIdleTimeSeconds = rng.Next(remoteIdleMin, remoteIdleMax + 1);
+
+                // Randomize MaxBaseTeleportDelaySeconds (Max wait before leaving camp for FATE/CE)
+                var baseTeleportMin = Math.Clamp(RandomMaxBaseTeleportDelayMin, 0, 60);
+                var baseTeleportMax = Math.Clamp(RandomMaxBaseTeleportDelayMax, baseTeleportMin, 60);
+                MaxBaseTeleportDelaySeconds = rng.Next(baseTeleportMin, baseTeleportMax + 1);
+            }
         }
-        else
-        {
-            var range = (double)rangedMin + rng.NextDouble() * (double)(rangedMax - rangedMin);
-            BossModMaxDistanceRanged = (float)Math.Round(range, 1);
-        }
-    }
-}

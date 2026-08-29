@@ -3,6 +3,7 @@ using BOCCHI.Common.Data.Zones.Graph;
 using BOCCHI.Common.Services;
 using Ocelot.Lifecycle;
 using Ocelot.Services.Logger;
+using System.Threading.Tasks;
 
 namespace BOCCHI.Common.Data.Zones;
 
@@ -66,7 +67,8 @@ public sealed class PotCycleTracker
 (
     IFateRepository fates,
     IZoneProvider zones,
-    ILogger<PotCycleTracker> logger
+    ILogger<PotCycleTracker> logger,
+    IPotCycleExternalProvider? externalProvider = null
 ) : IPotCycleTracker, IOnUpdate
 {
     private static readonly TimeSpan PotCycleInterval = TimeSpan.FromMinutes(30);
@@ -121,29 +123,46 @@ public sealed class PotCycleTracker
         };
 
     public void Update()
-    {
-        IZone zone = zones.GetZone();
-        if (!zone.IsOccultCrescentZone())
         {
-            return;
+            IZone zone = zones.GetZone();
+            if (!zone.IsOccultCrescentZone())
+            {
+                return;
+            }
+
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            List<ActivityData> potFates = zone.GetPotFateData();
+            if (potFates.Count == 0)
+            {
+                return;
+            }
+
+            ushort territory = zone.TerritoryType;
+            Fate? active = fates.Snapshot().FirstOrDefault(f => potFates.Any(p => p.Id == f.Id.Value));
+            PotCycleSnapshot previous = cycles.TryGetValue(territory, out PotCycleSnapshot? existing)
+                ? existing
+                : Empty;
+
+            // Try to get cycle from external provider if we have no local/remote anchor
+            if (!previous.HasKnownAnchor && externalProvider != null)
+            {
+                try
+                {
+                    PotCycleSnapshot? external = externalProvider.TryGetCycleAsync(territory, CancellationToken.None).GetAwaiter().GetResult();
+                    if (external != null && external.HasKnownAnchor)
+                    {
+                        previous = external;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Debug($"[PotCycleTracker] External provider error for territory {territory}: {ex.Message}");
+                }
+            }
+
+            cycles[territory] = BuildSnapshot(territory, potFates, active, now, previous);
+            knownCyclesDirty = true;
         }
-
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        List<ActivityData> potFates = zone.GetPotFateData();
-        if (potFates.Count == 0)
-        {
-            return;
-        }
-
-        ushort territory = zone.TerritoryType;
-        Fate? active = fates.Snapshot().FirstOrDefault(f => potFates.Any(p => p.Id == f.Id.Value));
-        PotCycleSnapshot previous = cycles.TryGetValue(territory, out PotCycleSnapshot? existing)
-            ? existing
-            : Empty;
-
-        cycles[territory] = BuildSnapshot(territory, potFates, active, now, previous);
-        knownCyclesDirty = true;
-    }
 
     public void Invalidate(ushort territoryTypeId, string? reason = null)
     {
