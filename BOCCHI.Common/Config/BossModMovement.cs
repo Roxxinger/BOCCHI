@@ -1,4 +1,5 @@
 using System.Globalization;
+using Ocelot.Config.Renderers.Enum;
 using Ocelot.Rotation.Services;
 
 namespace BOCCHI.Common.Config;
@@ -16,6 +17,17 @@ public enum BossModMovementDelay
     None,
     Short,
     Long,
+}
+
+public class BossModOverdodgeDisplay : IEnumDisplay<BossModOverdodge>
+{
+    public string Display(BossModOverdodge value) => value switch
+    {
+        BossModOverdodge.Small => "Small",
+        BossModOverdodge.Medium => "Medium",
+        BossModOverdodge.Large => "Large",
+        _ => "None",
+    };
 }
 
 public static class BossModMovement

@@ -138,114 +138,119 @@ public class AutomatorConfig : IAutoConfig
     [IntRange(1, 99, Order = 18, Section = "repair")]
     public int AutoRepairThreshold { get; set; } = 30;
 
+    /// <summary>Self-repair vs nearby mender at base camp.</summary>
+    [EnumSelectDisplay<AutoRepairMethod, AutoRepairMethodDisplay>(Order = 19, Section = "repair")]
+    public AutoRepairMethod AutoRepairMethod { get; set; } = AutoRepairMethod.SelfRepair;
+
+    // Path conflict detection & humanizing randomization (AOCCH parity)
     /// <summary>
     ///     Radius (meters) of a random 2D offset applied to each pathfind target so
     ///     loops approach from slightly different angles instead of retracing one
     ///     exact line. 0 = disabled. Kept small so the player always lands inside the
     ///     activity's interaction radius.
     /// </summary>
-    [FloatRange(0f, 6f, Order = 18)]
-        public float PathJitterRadius { get; set; } = 2f;
+    [FloatRange(0f, 6f, Order = 20, Section = "pathing")]
+    public float PathJitterRadius { get; set; } = 2f;
 
-        /// <summary>
-            ///     Arrival range (meters) passed to vnavmesh as DistanceThreshold for jittered
-            ///     pathfind targets. vnavmesh then picks the final leg itself instead of marching
-            ///     to the exact point — more natural approach, no mesh-edge risk.
-            ///     0 = arrive exactly (disabled).
-            /// </summary>
-            [FloatRange(0f, 6f, Order = 19)]
-            public float PathArrivalRange { get; set; } = 2f;
+    /// <summary>
+    ///     Arrival range (meters) passed to vnavmesh as DistanceThreshold for jittered
+    ///     pathfind targets. vnavmesh then picks the final leg itself instead of marching
+    ///     to the exact point — more natural approach, no mesh-edge risk.
+    ///     0 = arrive exactly (disabled).
+    /// </summary>
+    [FloatRange(0f, 6f, Order = 21, Section = "pathing")]
+    public float PathArrivalRange { get; set; } = 2f;
 
-            /// <summary>
-                    ///     Number of top-cost path candidates to consider for random selection instead of
-                    ///     always taking the absolute minimum. 1 = deterministic (current behavior).
-                    ///     2-5 = pick randomly among the best N paths, breaking identical routes across users.
-                    ///     0 = disabled.
-                    /// </summary>
-                    [IntRange(0, 10, Order = 20)]
-                    public int PathDiversityTopK { get; set; } = 1;
+    /// <summary>
+    ///     Number of top-cost path candidates to consider for random selection instead of
+    ///     always taking the absolute minimum. 1 = deterministic (current behavior).
+    ///     2-5 = pick randomly among the best N paths, breaking identical routes across users.
+    ///     0 = disabled.
+    /// </summary>
+    [IntRange(0, 10, Order = 22, Section = "pathing")]
+    public int PathDiversityTopK { get; set; } = 1;
 
-                    /// <summary>
-                    ///     Master switch for humanizing randomization. When enabled, the values below
-                    ///     are randomized within their min/max ranges each time Illegal Mode starts,
-                    ///     a CE begins, or a FATE begins.
-                    /// </summary>
-                    [Checkbox(Order = 21, Section = "randomization")]
-                    public bool EnableRandomization { get; set; } = false;
+    /// <summary>
+    ///     Master switch for humanizing randomization. When enabled, the values below
+    ///     are randomized within their min/max ranges each time Illegal Mode starts,
+    ///     a CE begins, or a FATE begins.
+    /// </summary>
+    [Checkbox(Order = 23, Section = "randomization")]
+    public bool EnableRandomization { get; set; } = false;
 
-                    /// <summary>Minimum Overdodge AoE setting for randomization.</summary>
-                    [EnumSelect<BossModOverdodge>(Order = 22, Section = "randomization")]
-                    public BossModOverdodge RandomOverdodgeMin { get; set; } = BossModOverdodge.None;
+    /// <summary>Minimum Overdodge AoE setting for randomization.</summary>
+    [EnumSelect<BossModOverdodge>(Order = 24, Section = "randomization")]
+    public BossModOverdodge RandomOverdodgeMin { get; set; } = BossModOverdodge.None;
 
-                    /// <summary>Maximum Overdodge AoE setting for randomization.</summary>
-                    [EnumSelect<BossModOverdodge>(Order = 23, Section = "randomization")]
-                    public BossModOverdodge RandomOverdodgeMax { get; set; } = BossModOverdodge.Large;
+    /// <summary>Maximum Overdodge AoE setting for randomization.</summary>
+    [EnumSelect<BossModOverdodge>(Order = 25, Section = "randomization")]
+    public BossModOverdodge RandomOverdodgeMax { get; set; } = BossModOverdodge.Large;
 
-                    /// <summary>Minimum Delayed Movement setting for randomization.</summary>
-                    [EnumSelect<BossModMovementDelay>(Order = 24, Section = "randomization")]
-                    public BossModMovementDelay RandomDelayedMin { get; set; } = BossModMovementDelay.None;
+    /// <summary>Minimum Delayed Movement setting for randomization.</summary>
+    [EnumSelect<BossModMovementDelay>(Order = 26, Section = "randomization")]
+    public BossModMovementDelay RandomDelayedMin { get; set; } = BossModMovementDelay.None;
 
-                    /// <summary>Maximum Delayed Movement setting for randomization.</summary>
-                    [EnumSelect<BossModMovementDelay>(Order = 25, Section = "randomization")]
-                    public BossModMovementDelay RandomDelayedMax { get; set; } = BossModMovementDelay.Long;
+    /// <summary>Maximum Delayed Movement setting for randomization.</summary>
+    [EnumSelect<BossModMovementDelay>(Order = 27, Section = "randomization")]
+    public BossModMovementDelay RandomDelayedMax { get; set; } = BossModMovementDelay.Long;
 
-                    /// <summary>Minimum melee target range (meters) for randomization.</summary>
-                    [FloatRange(1.1f, 30f, Order = 26, Section = "randomization")]
-                    public float RandomMeleeRangeMin { get; set; } = 1.1f;
+    /// <summary>Minimum melee target range (meters) for randomization.</summary>
+    [FloatRange(1.1f, 30f, Order = 28, Section = "randomization")]
+    public float RandomMeleeRangeMin { get; set; } = 1.1f;
 
-                    /// <summary>Maximum melee target range (meters) for randomization.</summary>
-                    [FloatRange(1.1f, 30f, Order = 27, Section = "randomization")]
-                    public float RandomMeleeRangeMax { get; set; } = 5f;
+    /// <summary>Maximum melee target range (meters) for randomization.</summary>
+    [FloatRange(1.1f, 30f, Order = 29, Section = "randomization")]
+    public float RandomMeleeRangeMax { get; set; } = 5f;
 
-                    /// <summary>Minimum ranged target range (meters) for randomization.</summary>
-                    [FloatRange(1.1f, 30f, Order = 28, Section = "randomization")]
-                    public float RandomRangedRangeMin { get; set; } = 15f;
+    /// <summary>Minimum ranged target range (meters) for randomization.</summary>
+    [FloatRange(1.1f, 30f, Order = 30, Section = "randomization")]
+    public float RandomRangedRangeMin { get; set; } = 15f;
 
-                    /// <summary>Maximum ranged target range (meters) for randomization.</summary>
-                    [FloatRange(1.1f, 30f, Order = 29, Section = "randomization")]
-                    public float RandomRangedRangeMax { get; set; } = 30f;
+    /// <summary>Maximum ranged target range (meters) for randomization.</summary>
+    [FloatRange(1.1f, 30f, Order = 31, Section = "randomization")]
+    public float RandomRangedRangeMax { get; set; } = 30f;
 
-                    /// <summary>Randomization seed. 0 = time-based (different each run).</summary>
-                                        [IntRange(0, int.MaxValue, Order = 30, Section = "randomization")]
-                                        public int RandomizationSeed { get; set; } = 0;
+    /// <summary>Randomization seed. 0 = time-based (different each run).</summary>
+    [IntRange(0, int.MaxValue, Order = 32, Section = "randomization")]
+    public int RandomizationSeed { get; set; } = 0;
 
-                                        /// <summary>
-                                        ///     Applies randomization to the current config values based on the min/max ranges.
-                                        ///     Called when Illegal Mode starts, a CE begins, or a FATE begins.
-                                        /// </summary>
-                                        public void ApplyRandomization(bool isMelee, Random? rng = null)
-                                        {
-                                            if (!EnableRandomization) return;
+    /// <summary>
+    ///     Applies randomization to the current config values based on the min/max ranges.
+    ///     Called when Illegal Mode starts, a CE begins, or a FATE begins.
+    /// </summary>
+    public void ApplyRandomization(bool isMelee, Random? rng = null)
+    {
+        if (!EnableRandomization) return;
 
-                                            rng ??= new Random(RandomizationSeed == 0 ? Environment.TickCount : RandomizationSeed);
+        rng ??= new Random(RandomizationSeed == 0 ? Environment.TickCount : RandomizationSeed);
 
-                                            // Randomize Overdodge AoE
-                                            var overdodgeCount = Enum.GetValues<BossModOverdodge>().Length;
-                                            var overdodgeMin = Math.Clamp((int)RandomOverdodgeMin, 0, overdodgeCount - 1);
-                                            var overdodgeMax = Math.Clamp((int)RandomOverdodgeMax, overdodgeMin, overdodgeCount - 1);
-                                            BossModOverdodge = (BossModOverdodge)rng.Next(overdodgeMin, overdodgeMax + 1);
+        // Randomize Overdodge AoE
+        var overdodgeCount = Enum.GetValues<BossModOverdodge>().Length;
+        var overdodgeMin = Math.Clamp((int)RandomOverdodgeMin, 0, overdodgeCount - 1);
+        var overdodgeMax = Math.Clamp((int)RandomOverdodgeMax, overdodgeMin, overdodgeCount - 1);
+        BossModOverdodge = (BossModOverdodge)rng.Next(overdodgeMin, overdodgeMax + 1);
 
-                                            // Randomize Delayed Movement
-                                            var delayedCount = Enum.GetValues<BossModMovementDelay>().Length;
-                                            var delayedMin = Math.Clamp((int)RandomDelayedMin, 0, delayedCount - 1);
-                                            var delayedMax = Math.Clamp((int)RandomDelayedMax, delayedMin, delayedCount - 1);
-                                            BossModMovementDelay = (BossModMovementDelay)rng.Next(delayedMin, delayedMax + 1);
+        // Randomize Delayed Movement
+        var delayedCount = Enum.GetValues<BossModMovementDelay>().Length;
+        var delayedMin = Math.Clamp((int)RandomDelayedMin, 0, delayedCount - 1);
+        var delayedMax = Math.Clamp((int)RandomDelayedMax, delayedMin, delayedCount - 1);
+        BossModMovementDelay = (BossModMovementDelay)rng.Next(delayedMin, delayedMax + 1);
 
-                                            // Randomize Melee/Ranged Target Range based on job type
-                                            var meleeMin = Math.Clamp(RandomMeleeRangeMin, 1.1f, 30f);
-                                            var meleeMax = Math.Clamp(RandomMeleeRangeMax, meleeMin, 30f);
-                                            var rangedMin = Math.Clamp(RandomRangedRangeMin, 1.1f, 30f);
-                                            var rangedMax = Math.Clamp(RandomRangedRangeMax, rangedMin, 30f);
+        // Randomize Melee/Ranged Target Range based on job type
+        var meleeMin = Math.Clamp(RandomMeleeRangeMin, 1.1f, 30f);
+        var meleeMax = Math.Clamp(RandomMeleeRangeMax, meleeMin, 30f);
+        var rangedMin = Math.Clamp(RandomRangedRangeMin, 1.1f, 30f);
+        var rangedMax = Math.Clamp(RandomRangedRangeMax, rangedMin, 30f);
 
-                                            if (isMelee)
-                                            {
-                                                var range = (double)meleeMin + rng.NextDouble() * (double)(meleeMax - meleeMin);
-                                                BossModMaxDistanceMelee = (float)Math.Round(range, 1);
-                                            }
-                                            else
-                                            {
-                                                var range = (double)rangedMin + rng.NextDouble() * (double)(rangedMax - rangedMin);
-                                                BossModMaxDistanceRanged = (float)Math.Round(range, 1);
-                                            }
-                                        }
-                                    }
+        if (isMelee)
+        {
+            var range = (double)meleeMin + rng.NextDouble() * (double)(meleeMax - meleeMin);
+            BossModMaxDistanceMelee = (float)Math.Round(range, 1);
+        }
+        else
+        {
+            var range = (double)rangedMin + rng.NextDouble() * (double)(rangedMax - rangedMin);
+            BossModMaxDistanceRanged = (float)Math.Round(range, 1);
+        }
+    }
+}

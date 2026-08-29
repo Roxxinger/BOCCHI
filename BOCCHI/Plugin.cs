@@ -41,7 +41,6 @@ using Ocelot.UI.Services;
 using Ocelot.Windows;
 using System.Reflection;
 using BOCCHI.Services.MOTD;
-using BOCCHI.Services.Shopping;
 using BOCCHI.Debug;
 using Ocelot.Lifecycle;
 
@@ -75,7 +74,6 @@ public sealed class Plugin(IDalamudPluginInterface plugin, IPluginLog logger) : 
         services.AddSingleton<IMainWindowTitleBarContributor, IllegalModeTitleBarContributor>();
         services.AddSingleton<IMainWindowTitleBarContributor, KofiTitleBarContributor>();
         services.AddSingleton<IFieldRenderer<MobMultiSelectAttribute>, MobMultiSelectRenderer>();
-        services.AddSingleton<IFieldRenderer<ShopTargetListAttribute>, ShopTargetListRenderer>();
         services.AddSingleton<IFieldRenderer<DisabledFateIdsAttribute>, DisabledFateIdsRenderer>();
         services.AddSingleton<IFieldRenderer<DisabledCriticalEncounterIdsAttribute>, DisabledCriticalEncounterIdsRenderer>();
         services.AddSingleton<IFieldRenderer<MountSelectAttribute>, MountSelectRenderer>();
@@ -83,17 +81,18 @@ public sealed class Plugin(IDalamudPluginInterface plugin, IPluginLog logger) : 
         services.AddSingleton<IMp3SoundPlayer, Mp3SoundPlayer>();
         services.AddSingleton<IFieldRenderer<Mp3SoundSelectAttribute>, Mp3SoundSelectRenderer>();
         services.AddSingleton<UILanguageDisplay>();
-                services.AddSingleton<NoOpFilter<UILanguage>>();
-                services.AddSingleton<CombatAutorotationDisplay>();
-                services.AddSingleton<CombatAutorotationFilter>();
-                services.AddSingleton<GenericDisplay<BossModOverdodge>>();
-                services.AddSingleton<NoOpFilter<BossModOverdodge>>();
-                services.AddSingleton<GenericDisplay<BossModMovementDelay>>();
-                services.AddSingleton<NoOpFilter<BossModMovementDelay>>();
-                services.AddSingleton<IFieldRenderer<TriageRaiseJobAttribute>, TriageRaiseJobRenderer>();
-                services.AddSingleton<IFieldRenderer<BossModPresetOptionsAttribute>, BossModPresetOptionsRenderer>();
-                services.AddSingleton<IFieldRenderer<FarmSpotListAttribute>, FarmSpotListRenderer>();
-                services.AddSingleton<MobFarmerYieldService>();
+        services.AddSingleton<NoOpFilter<UILanguage>>();
+        services.AddSingleton<CombatAutorotationDisplay>();
+        services.AddSingleton<CombatAutorotationFilter>();
+        services.AddSingleton<AutoRepairMethodDisplay>();
+        services.AddSingleton<NoOpFilter<AutoRepairMethod>>();
+        services.AddSingleton<BossModOverdodgeDisplay>();
+        services.AddSingleton<NoOpFilter<BossModOverdodge>>();
+        services.AddSingleton<IFieldRenderer<TriageRaiseJobAttribute>, TriageRaiseJobRenderer>();
+        services.AddSingleton<IFieldRenderer<BossModPresetOptionsAttribute>, BossModPresetOptionsRenderer>();
+        services.AddSingleton<IFieldRenderer<FarmSpotListAttribute>, FarmSpotListRenderer>();
+        services.AddSingleton<IFieldRenderer<ShopShoppingListAttribute>, ShopShoppingListRenderer>();
+        services.AddSingleton<MobFarmerYieldService>();
 
         services.AddSingleton<MessageOfTheDayService>();
         services.AddSingleton<IOnStart>(sp => sp.GetRequiredService<MessageOfTheDayService>());
@@ -122,11 +121,7 @@ public sealed class Plugin(IDalamudPluginInterface plugin, IPluginLog logger) : 
         services.AddSingleton<NpcRepairStep>();
         services.AddSingleton<IRepairService, RepairService>();
         services.AddSingleton<AethernetTeleportChain>();
-        services.AddSingleton<ShopPageMatcher>();
-        services.AddSingleton<ShopInspectorController>();
-        services.AddSingleton<ShopPurchaseController>();
         services.AddSingleton<ShoppingService>();
-
         services.LoadTrackersModule();
         services.LoadWorldModule();
         services.LoadBuffModule();
@@ -137,8 +132,6 @@ public sealed class Plugin(IDalamudPluginInterface plugin, IPluginLog logger) : 
 
         services.AddBocchiCommands();
         services.LoadDebugModule();
-        services.AddSingleton<Debug.Panels.ShoppingDebugPanel>();
-        services.AddSingleton<IDebugPanel>(sp => sp.GetRequiredService<Debug.Panels.ShoppingDebugPanel>());
     }
 
     private static void BootstrapOcelotModules(IServiceCollection services)
@@ -221,16 +214,8 @@ public sealed class Plugin(IDalamudPluginInterface plugin, IPluginLog logger) : 
         cfg.FatesConfig.DisabledFateIds ??= [];
         cfg.CriticalEncountersConfig.DisabledCriticalEncounterIds ??= [];
         cfg.ShoppingConfig.PreferredItemIds ??= [];
-        cfg.ShoppingConfig.Targets ??= [];
-        cfg.ShoppingConfig.Reserves ??= [];
-        cfg.ShoppingConfig.Thresholds ??= [];
-        foreach (var target in cfg.ShoppingConfig.Targets)
-        {
-            if (string.IsNullOrWhiteSpace(target.TerritoryKey) || target.TerritoryKey.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
-            {
-                target.TerritoryKey = "SouthHorn";
-            }
-        }
+        cfg.ShoppingConfig.ShoppingOrder ??= [];
+        cfg.ShoppingConfig.Shopping ??= new();
         cfg.MobFarmerConfig.Mobs ??= [];
         SanitizeAutomatorConfig(cfg.AutomatorConfig);
         SanitizeTreasureConfig(cfg.TreasureConfig);

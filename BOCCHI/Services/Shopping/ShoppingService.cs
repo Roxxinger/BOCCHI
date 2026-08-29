@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using BOCCHI.Common.Config;
 using BOCCHI.Common.Data.Aethernet;
 using BOCCHI.Common.Data.OccultCrescent;
@@ -6,877 +5,448 @@ using BOCCHI.Common.Data.Shopping;
 using BOCCHI.Common.Data.StateMemory;
 using BOCCHI.Common.Data.SupportJobs;
 using BOCCHI.Common.Data.Zones;
-using BOCCHI.Automator.Services;
 using BOCCHI.Common.Services;
 using BOCCHI.MobFarmer.Services;
-using BOCCHI.Treasure.Services;
-using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
+using ECommons;
 using ECommons.Throttlers;
 using ECommons.UIHelpers.AddonMasterImplementations;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
-using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using Ocelot.Actions;
 using Ocelot.Chain;
 using Ocelot.Extensions;
 using Ocelot.Ipc.VNavmesh;
 using Ocelot.Lifecycle;
 using Ocelot.Services.Logger;
-using Ocelot.Services.Pathfinding;
 using Ocelot.Services.PlayerState;
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace BOCCHI.Services.Shopping;
 
 /// <summary>
-///     Automatic Antiquarian currency shopping — AOCCH functionality rebuilt on BOCCHI
-///     primitives. When <see cref="ShoppingConfig.EnableAutoShop"/> is on and a configured
-///     currency threshold is met, travels to the Expedition Antiquarian, opens the right
-///     menu entry and tab (verified against the catalog via live ATK reads), then buys each
-///     configured target Keep → Buy → Keep Buying in priority order, honouring per-territory
-///     reserves. Stops when nothing actionable remains.
+/// When currency thresholds are hit, soft-suspend other automation, visit the Expedition
+/// Antiquarian, and buy from the shopping list. Never starts or continues travel during a
+/// live FATE/CE, or while Mob Farmer is mid-pull / stacking / fighting.
 /// </summary>
-public sealed class ShoppingService : IOnUpdate, IDisposable
+public sealed class ShoppingService
+(
+    ShoppingConfig config,
+    IZoneProvider zones,
+    IObjectTable objects,
+    IPlayer player,
+    IGameGui gui,
+    IVNavmeshIpc vnav,
+    IChainManager chainManager,
+    IChainFactory chains,
+    IAutomationModeGuard modeGuard,
+    ISupportJobFactory supportJobs,
+    IDataManager data,
+    IUnlockState unlockState,
+    IFateContext fates,
+    ICriticalEncounterContext criticalEncounters,
+    IAutomatorMemory memory,
+    Func<IMobFarmer> farmerFactory,
+    ILogger<ShoppingService> logger
+) : IOnUpdate
 {
-    private const float VendorInteractionRange = 3.25f;
-    private static readonly TimeSpan StepRetryDelay = TimeSpan.FromMilliseconds(500);
-    private static readonly TimeSpan AutoStartCooldown = TimeSpan.FromSeconds(15);
-    private static readonly TimeSpan MenuOpenTimeout = TimeSpan.FromSeconds(3);
-    private const int MaxMenuOpenAttempts = 3;
-
+    private IMobFarmer Farmer => farmerFactory();
     private enum Phase
     {
         Idle,
         Traveling,
+        Approaching,
         OpeningMenu,
-        Navigating,
-        Buying,
-        Closing,
+        Buying
     }
-
-    private readonly ShoppingConfig config;
-    private readonly IZoneProvider zones;
-    private readonly IObjectTable objects;
-    private readonly IPlayer player;
-    private readonly IGameGui gui;
-    private readonly ICondition condition;
-    private readonly IVNavmeshIpc vnav;
-    private readonly ShopInspectorController inspector;
-    private readonly ShopPageMatcher matcher;
-    private readonly ShopPurchaseController purchases;
-    private readonly IAutomator automator;
-    private readonly IMobFarmer farmer;
-    private readonly ITreasureHunter hunter;
-    private readonly ICarrotHunter carrotHunter;
-    private readonly IPotsTreasureMode potsTreasure;
-    private readonly IChainFactory chains;
-    private readonly IChainManager chainManager;
-    private readonly IPathfinder pathfinder;
-    private readonly ITargetManager targets;
-    private readonly ILogger<ShoppingService> logger;
-    private readonly object gate = new();
 
     private Phase phase = Phase.Idle;
-    private string status = "Idle";
-    private int completedPurchaseCount;
-    private DateTimeOffset nextStepAt = DateTimeOffset.MinValue;
-    private DateTimeOffset autoStartBlockedUntil = DateTimeOffset.MinValue;
+    private DateTimeOffset buyCooldownUntil = DateTimeOffset.MinValue;
+    private bool priorityClaimed;
+    private int desiredMenuIndex;
+    private int? openedMenuIndex;
+    private Task<ChainResult>? teleportChain;
+    private readonly HashSet<uint> skippedMissingRows = [];
 
-    // Current group being worked (menu index + tab id).
-    private ShopPageDefinition? desiredPage;
-    private ShopTabDefinition? desiredTab;
-    private DateTimeOffset matchedAt = DateTimeOffset.MinValue;
-    private bool stableLogged;
-
-    // Menu-open retry bookkeeping.
-    private bool menuOpenPending;
-    private DateTimeOffset menuOpenStartedAt = DateTimeOffset.MinValue;
-    private int menuOpenAttempts;
-
-    // Active aethernet teleport task to base camp (null = none).
-    private Task<ChainResult>? teleportTask;
-
-    public ShoppingService(
-        ShoppingConfig config,
-        IZoneProvider zones,
-        IObjectTable objects,
-        IPlayer player,
-        IGameGui gui,
-        ICondition condition,
-        IVNavmeshIpc vnav,
-        ShopInspectorController inspector,
-        ShopPurchaseController purchases,
-        IAutomator automator,
-        IMobFarmer farmer,
-        ITreasureHunter hunter,
-        ICarrotHunter carrotHunter,
-        IPotsTreasureMode potsTreasure,
-        IChainFactory chains,
-        IChainManager chainManager,
-        IPathfinder pathfinder,
-        ITargetManager targets,
-        ILogger<ShoppingService> logger)
-    {
-        this.config = config;
-        this.zones = zones;
-        this.objects = objects;
-        this.player = player;
-        this.gui = gui;
-        this.condition = condition;
-        this.vnav = vnav;
-        this.inspector = inspector;
-        this.purchases = purchases;
-        this.automator = automator;
-        this.farmer = farmer;
-        this.hunter = hunter;
-        this.carrotHunter = carrotHunter;
-        this.potsTreasure = potsTreasure;
-        this.chains = chains;
-        this.chainManager = chainManager;
-        this.pathfinder = pathfinder;
-        this.targets = targets;
-        this.logger = logger;
-        this.matcher = new ShopPageMatcher();
-
-        purchases.Completed += OnPurchaseCompleted;
-    }
-
-    public void Dispose()
-    {
-        purchases.Completed -= OnPurchaseCompleted;
-        // Never leave Illegal Mode suspended across plugin unload.
-        try
+    public UpdateLimit UpdateLimit =>
+        new()
         {
-            automator.SetSuspendedForShopping(false);
-        }
-        catch
-        {
-            // Plugin teardown — automator may already be disposed.
-        }
-    }
-
-    public bool IsRunning => phase != Phase.Idle;
-
-    public string Status
-    {
-        get
-        {
-            lock (gate)
-            {
-                return status;
-            }
-        }
-    }
-
-    public string TriggerStatus { get; private set; } = "Automatic shopping disabled.";
-
-    /// <summary>True when auto-shopping should kick off right now (idle window assumed checked by caller).</summary>
-    public bool ShouldAutoStart(out string reason)
-    {
-        if (!config.EnableAutoShop)
-        {
-            reason = "Automatic shopping disabled.";
-            return false;
-        }
-
-        if (DateTimeOffset.UtcNow < autoStartBlockedUntil)
-        {
-            reason = "Automatic shopping cooldown active.";
-            return false;
-        }
-
-        if (IsRunning)
-        {
-            reason = Status;
-            return false;
-        }
-
-        if (!TryGetPagesForZone(out var pages))
-        {
-            reason = "No catalog for this territory.";
-            return false;
-        }
-
-        if (condition[ConditionFlag.InCombat] || condition[ConditionFlag.BetweenAreas]
-            || condition[ConditionFlag.OccupiedInQuestEvent] || condition[ConditionFlag.Casting])
-        {
-            reason = "Blocked: player busy.";
-            return false;
-        }
-
-        if (farmer.Running || hunter.Running || carrotHunter.Running || potsTreasure.Running)
-        {
-            reason = "Blocked: another automation mode is running.";
-            return false;
-        }
-
-        // Shopping only runs under Illegal Mode (user requirement) — never standalone.
-        if (!automator.IsIllegalMode)
-        {
-            reason = "Waiting for Illegal Mode.";
-            return false;
-        }
-
-        if (automator.SuspendedForTreasure)
-        {
-            reason = "Blocked: treasure hunt owns movement.";
-            return false;
-        }
-
-        foreach (var page in pages)
-        {
-            var available = AvailableCurrency(page.CurrencyItemId);
-            if (available <= 0 || CurrencyCount(page.CurrencyItemId) < config.GetThreshold(TerritoryKey(), page.CurrencyItemId))
-            {
-                continue;
-            }
-
-            foreach (var tab in page.Tabs)
-            {
-                if (HasActionableTarget(page, tab, available))
-                {
-                    reason = "Threshold met with actionable targets.";
-                    return true;
-                }
-            }
-        }
-
-        reason = "Waiting for a currency threshold.";
-        return false;
-    }
-
-    /// <summary>Manual start (also used by auto-start). False with Status set when blocked.</summary>
-    public bool Start()
-    {
-        if (IsRunning)
-        {
-            return true;
-        }
-
-        if (!config.EnableAutoShop)
-        {
-            SetStatus("Automatic shopping disabled.");
-            return false;
-        }
-
-        if (!TryGetPagesForZone(out _))
-        {
-            SetStatus("Failed: shopping requires South Horn or North Horn.");
-            return false;
-        }
-
-        if (!ShouldAutoStart(out var why) && !why.Contains("Threshold met"))
-        {
-            // Manual start bypasses thresholds; only hard blocks apply.
-            if (why.StartsWith("Blocked") || why.Contains("cooldown"))
-            {
-                SetStatus(why);
-                return false;
-            }
-        }
-
-        completedPurchaseCount = 0;
-        desiredPage = null;
-        desiredTab = null;
-        menuOpenPending = false;
-        menuOpenAttempts = 0;
-        phase = Phase.Navigating;
-        // Pause Illegal Mode's pipeline — shopping owns vnav until it finishes.
-        automator.SetSuspendedForShopping(true);
-        SetStatus("Starting automatic shopping.");
-        logger.Info("[Shopping] op=start");
-        return true;
-    }
-
-    public void Stop(string reason, bool cooldown = true)
-    {
-        vnav.Stop();
-        purchases.Cancel(reason);
-        if (teleportTask != null)
-        {
-            chainManager.CancelAll();
-            teleportTask = null;
-        }
-        automator.SetSuspendedForShopping(false);
-        phase = Phase.Idle;
-        desiredPage = null;
-        desiredTab = null;
-        menuOpenPending = false;
-        menuOpenAttempts = 0;
-        SetStatus(reason);
-        if (cooldown)
-        {
-            autoStartBlockedUntil = DateTimeOffset.UtcNow + AutoStartCooldown;
-        }
-
-        logger.Info($"[Shopping] op=stop reason=\"{reason}\"");
-    }
+            Mode = UpdateLimitMode.Milliseconds,
+            Limit = 250
+        };
 
     public void Update()
     {
-        RefreshTriggerStatus();
-
-        // Turning the toggle off aborts a run in progress (AOCCH behavior).
-        if (phase != Phase.Idle && !config.EnableAutoShop)
+        if (!config.EnableAutoShop)
         {
-            Stop("Stopped: auto shopping disabled.");
-            return;
-        }
-
-        if (phase == Phase.Idle)
-        {
-            // Auto-start: thresholds + idle checks are all inside ShouldAutoStart.
-            if (ShouldAutoStart(out _) && Start())
+            if (priorityClaimed || phase != Phase.Idle)
             {
-                logger.Info("[Shopping] op=auto-start");
+                AbortShopping(resumeAutomation: true);
             }
 
             return;
         }
 
-        if (!zones.GetZone().IsOccultCrescentZone())
+        IZone zone = zones.GetZone();
+        if (!zone.IsOccultCrescentZone() || zone.GetShoppingVendor() is not { } vendor)
         {
-            Stop("Stopped: left the Occult Crescent.");
-            return;
-        }
-
-        if (condition[ConditionFlag.InCombat])
-        {
-            Stop("Stopped: combat started.");
-            return;
-        }
-
-        if (DateTimeOffset.UtcNow < nextStepAt)
-        {
-            return;
-        }
-
-        switch (phase)
-        {
-            case Phase.Traveling:
-                TickTravel();
-                break;
-            case Phase.OpeningMenu:
-                TickOpenMenu();
-                break;
-            case Phase.Navigating:
-                try
-                {
-                    TickNavigate();
-                }
-                catch (Exception ex)
-                {
-                    Stop($"Stopped: navigation error — {ex.Message}");
-                }
-
-                break;
-            case Phase.Buying:
-                TickBuy();
-                break;
-            case Phase.Closing:
-                TryCloseShop();
-                break;
-        }
-    }
-
-    // ---------------------------------------------------------------- travel
-
-    private void TickTravel()
-    {
-        // A teleport chain to base camp is running — wait for it to finish.
-        if (teleportTask != null)
-        {
-            if (!teleportTask.IsCompleted)
+            if (priorityClaimed || phase != Phase.Idle)
             {
-                SetStatus("Shopping | Teleporting to base camp.");
+                AbortShopping(resumeAutomation: true);
+            }
+
+            return;
+        }
+
+        ZoneId zoneId = zone.ZoneId;
+        int silver = OccultCrescentHelper.GetActiveSilver(zoneId);
+        int gold = OccultCrescentHelper.GetActiveGold(zoneId);
+        bool thresholdHit =
+            (config.SilverThreshold > 0 && silver >= config.SilverThreshold)
+            || (config.GoldThreshold > 0 && gold >= config.GoldThreshold);
+
+        // Never pull the player out of a live FATE/CE for shopping.
+        if (IsInFateOrCriticalEncounter())
+        {
+            if (AddonHelpers.IsShopExchangeOpen() && (HasPendingGoals(zoneId) || phase == Phase.Buying))
+            {
+                // Already at the antiquarian with the shop open — finish buys or close.
+                ClaimPriority();
+                phase = Phase.Buying;
+                TryHandleOpenShop(zoneId);
                 return;
             }
 
-            if (teleportTask.Result.IsSuccess)
+            if (phase != Phase.Idle || priorityClaimed)
             {
-                logger.Info("[Shopping] op=teleport-done result=success");
-            }
-            else
-            {
-                logger.Warn($"[Shopping] op=teleport-done result={teleportTask.Result.State}");
+                AbortShopping(resumeAutomation: true);
+                logger.Debug("[Shopping] aborted — in FATE/CE");
             }
 
-            teleportTask = null;
-            nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
-            SetStatus("Shopping | Teleport finished; locating vendor.");
             return;
         }
 
-        if (!TryFindVendor(out var vendor))
+        if (AddonHelpers.IsShopExchangeOpen()
+            && (HasPendingGoals(zoneId) || phase == Phase.Buying || priorityClaimed))
         {
-            // Vendor only spawns at base camp. Prefer the Return spell (fast, no aetheryte
-            // walk); fall back to the Lifestream aethernet hop while Return is on cooldown.
-            var zone = zones.GetZone();
-            if (!zone.IsOccultCrescentZone())
-            {
-                Stop("Skipped: outside Occulent Crescent.".Replace("Occulent", "Occult"));
-                return;
-            }
-
-            if (zone.IsInBasecamp())
-            {
-                // At camp but vendor missing — retry shortly rather than stopping outright
-                // (vendor may be temporarily untargetable).
-                SetStatus("Shopping | Waiting for vendor at base camp.");
-                nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
-                return;
-            }
-
-            if (Actions.Return.CanCast())
-            {
-                var returnChain = ReturnToBaseCamp.Append(
-                    chains.Create("Shopping::Return"),
-                    zones,
-                    condition,
-                    gui,
-                    pathfinder,
-                    vnav);
-                teleportTask = chainManager.Manage(returnChain);
-                SetStatus("Shopping | Casting Return to base camp.");
-                logger.Info("[Shopping] op=return-start");
-                return;
-            }
-
-            var vendorData = zone.GetShoppingVendor();
-            var placeNameId = vendorData?.PreferredAethernetId ?? zone.GetMainAetheryte().Id;
-            if (!zone.IsUsableAethernetDestination(placeNameId))
-            {
-                Stop("Skipped: Return on cooldown and base camp aethernet unavailable.");
-                return;
-            }
-
-            teleportTask = chainManager.Manage(
-                chains.Create($"Shopping::Teleport({placeNameId})")
-                    .Then<AethernetTeleportChain, uint>(placeNameId));
-            SetStatus("Shopping | Teleporting to base camp.");
-            logger.Info($"[Shopping] op=teleport-start placeName={placeNameId}");
+            ClaimPriority();
+            phase = Phase.Buying;
+            TryHandleOpenShop(zoneId);
             return;
         }
 
-        var distance = vendor.Position.Distance2D(player.Position);
-        if (distance > VendorInteractionRange)
+        // Threshold + goals: may interrupt treasure hunt / idle mob-farm waits, but not FATE/CE
+        // or an active mob pull/fight.
+        bool shouldShop =
+            thresholdHit
+            && HasPendingGoals(zoneId)
+            && !IsTriageActive()
+            && !IsMobFarmerBusy();
+
+        if (!shouldShop && phase == Phase.Idle)
         {
-            if (vnav.IsNavmeshReady() && EzThrottler.Throttle("Shopping::Approach", 1000))
+            return;
+        }
+
+        if (!shouldShop && phase != Phase.Idle && !AddonHelpers.IsShopExchangeOpen())
+        {
+            // Threshold cleared mid-trip with nothing left to finish — resume.
+            FinishShopping();
+            return;
+        }
+
+        if (DateTimeOffset.UtcNow < buyCooldownUntil)
+        {
+            return;
+        }
+
+        ShopCatalogEntry? next = PickNextPurchase(zoneId, preferLiveRow: false);
+        if (next == null)
+        {
+            if (phase != Phase.Idle)
             {
-                // Stop 2y from the vendor itself — an approach point offset by 2.5y plus a
-                // 1.5y stop range could never close inside the 3.25y interaction range.
-                vnav.PathfindAndMoveCloseTo(vendor.Position, false, 2.0f);
+                FinishShopping();
             }
 
-            SetStatus($"Shopping | Approaching vendor ({distance:0.0}y).");
+            return;
+        }
+
+        desiredMenuIndex = next.Value.MenuIndex;
+        ClaimPriority();
+
+        if (teleportChain != null)
+        {
+            TickTeleport();
+            return;
+        }
+
+        IGameObject? npc = FindVendor(vendor.DataId);
+        if (npc == null)
+        {
+            TryTravelToCamp(zone, vendor.PreferredAethernetId);
+            return;
+        }
+
+        float distance = npc.Position.Distance2D(player.Position);
+        if (distance > 3.5f)
+        {
+            phase = Phase.Approaching;
+            if (vnav.IsNavmeshReady() && EzThrottler.Throttle("Shopping::Path", 1000))
+            {
+                Vector3 dest = npc.Position.GetApproachPosition(player.Position, 2.5f);
+                vnav.PathfindAndMoveCloseTo(dest, false, 1.5f);
+            }
+
             return;
         }
 
         vnav.Stop();
         phase = Phase.OpeningMenu;
-        nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
-    }
-
-    private unsafe void TickOpenMenu()
-    {
-        var snapshot = inspector.Snapshot;
-        if (snapshot.IsSelectIconStringOpen || snapshot.IsShopExchangeCurrencyOpen)
-        {
-            menuOpenPending = false;
-            phase = Phase.Navigating;
-            return;
-        }
-
-        if (menuOpenPending)
-        {
-            if (DateTimeOffset.UtcNow - menuOpenStartedAt < MenuOpenTimeout)
-            {
-                SetStatus($"Shopping | Waiting for vendor menu ({menuOpenAttempts}/{MaxMenuOpenAttempts}).");
-                return;
-            }
-
-            menuOpenPending = false;
-            nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
-            if (menuOpenAttempts >= MaxMenuOpenAttempts)
-            {
-                Stop($"Failed: vendor menu did not open after {MaxMenuOpenAttempts} attempts.");
-                return;
-            }
-        }
-
-        if (!TryFindVendor(out var vendor) || vendor == null)
-        {
-            Stop("Skipped: vendor disappeared before interaction.");
-            return;
-        }
-
-        if (condition[ConditionFlag.Mounted])
-        {
-            ActionManager.Instance()->UseAction(ActionType.GeneralAction, 23); // dismount
-            nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
-            return;
-        }
-
-        if (!EzThrottler.Throttle("Shopping::Interact", 750))
-        {
-            return;
-        }
-
-        // Set target first — interaction without a target is unreliable (AOCCH does the same).
-        targets.Target = vendor;
         unsafe
         {
-            TargetSystem.Instance()->InteractWithObject((FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)vendor.Address, false);
+            if (gui.GetAddonByName("SelectIconString", 1).Address != nint.Zero)
+            {
+                TrySelectShopMenu(desiredMenuIndex);
+                return;
+            }
+
+            if (EzThrottler.Throttle("Shopping::Interact", 1000))
+            {
+                openedMenuIndex = null;
+                TargetSystem.Instance()->InteractWithObject(
+                    (FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)npc.Address,
+                    false);
+            }
         }
-        menuOpenPending = true;
-        menuOpenStartedAt = DateTimeOffset.UtcNow;
-        menuOpenAttempts++;
-        SetStatus($"Shopping | Opening vendor menu ({menuOpenAttempts}/{MaxMenuOpenAttempts}).");
     }
 
-    // ------------------------------------------------------------ navigation
+    private bool IsInFateOrCriticalEncounter() =>
+        fates.IsInFate() || criticalEncounters.IsInCriticalEncounter();
 
-    private void TickNavigate()
+    private void ClaimPriority()
     {
-        var snapshot = inspector.Snapshot;
-
-        if (snapshot.IsSelectIconStringOpen)
+        if (priorityClaimed)
         {
-            if (desiredPage != null && !snapshot.MenuEntries.Any(e => e.Index == desiredPage.MenuIndex))
-            {
-                Stop($"Failed: vendor menu lacks expected entry {desiredPage.MenuIndex}.");
-                return;
-            }
+            return;
+        }
 
-            desiredPage ??= FindFirstActionablePage();
-            if (desiredPage == null)
-            {
-                StopCompleted("No actionable targets configured for this territory.");
-                return;
-            }
+        priorityClaimed = true;
+        modeGuard.EnsureExclusive(AutomationMode.Shopping);
+        logger.Debug("[Shopping] soft-suspended other automation");
+    }
 
-            if (!snapshot.MenuEntries.Any(e => e.Index == desiredPage.MenuIndex))
-            {
-                Stop($"Failed: vendor menu lacks expected entry {desiredPage.MenuIndex}.");
-                return;
-            }
+    private void FinishShopping()
+    {
+        AbortShopping(resumeAutomation: true);
+        buyCooldownUntil = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(30);
+        logger.Debug("[Shopping] finished — nothing affordable left or trip complete");
+    }
 
-            if (EzThrottler.Throttle("Shopping::MenuSelect", 600))
+    private void AbortShopping(bool resumeAutomation)
+    {
+        phase = Phase.Idle;
+        openedMenuIndex = null;
+        skippedMissingRows.Clear();
+        teleportChain = null;
+        chainManager.CancelWhere(name => name.StartsWith("Shopping::", StringComparison.Ordinal));
+        vnav.Stop();
+
+        if (priorityClaimed && resumeAutomation)
+        {
+            priorityClaimed = false;
+            modeGuard.NotifyShoppingEnded();
+        }
+        else if (!resumeAutomation)
+        {
+            priorityClaimed = false;
+        }
+    }
+
+    private bool IsTriageActive() =>
+        memory.TryRemember<PendingTriageMemory>(out PendingTriageMemory _)
+        || memory.TryRemember<TriagingMemory>(out TriagingMemory _);
+
+    /// <summary>
+    /// Mob Farmer mid-pull / stack / fight — same window as other farmer yields.
+    /// Suspended farmer (e.g. treasure) is not busy; shopping may take over.
+    /// </summary>
+    private bool IsMobFarmerBusy() =>
+        Farmer.Running && !Farmer.Suspended && !Farmer.CanAcceptYield;
+
+    private void TickTeleport()
+    {
+        phase = Phase.Traveling;
+        if (teleportChain is not { IsCompleted: true })
+        {
+            return;
+        }
+
+        bool ok = teleportChain.IsCompletedSuccessfully && (teleportChain.Result?.IsSuccess ?? false);
+        teleportChain = null;
+        if (!ok)
+        {
+            logger.Warn("[Shopping] aethernet to camp failed — will path if vendor is in range");
+        }
+    }
+
+    private void TryTravelToCamp(IZone zone, uint preferredAethernetId)
+    {
+        phase = Phase.Traveling;
+
+        if (AetheryteApproach.IsAtPlaceName(zone, preferredAethernetId, player.Position)
+            || zone.IsInBasecamp())
+        {
+            // At camp but vendor object not spawned yet — wait.
+            return;
+        }
+
+        if (teleportChain != null)
+        {
+            return;
+        }
+
+        if (!EzThrottler.Throttle("Shopping::Teleport", 2000))
+        {
+            return;
+        }
+
+        vnav.Stop();
+        teleportChain = chainManager.Manage(
+            chains.Create($"Shopping::Teleport({preferredAethernetId})")
+                .Then<AethernetTeleportChain, uint>(preferredAethernetId));
+    }
+
+    private IGameObject? FindVendor(uint dataId) =>
+        objects
+            .Where(o => o is { ObjectKind: ObjectKind.EventNpc, IsTargetable: true } && o.BaseId == dataId)
+            .OrderBy(o => o.Position.Distance2D(player.Position))
+            .FirstOrDefault();
+
+    private unsafe bool TryHandleOpenShop(ZoneId zoneId)
+    {
+        if (!GenericHelpers.TryGetAddonByName("ShopExchangeCurrency", out AtkUnitBase* shop)
+            || !GenericHelpers.IsAddonReady(shop))
+        {
+            return false;
+        }
+
+        openedMenuIndex ??= desiredMenuIndex;
+
+        // Confirm Yesno from a previous buy tick first.
+        if (AddonHelpers.TryGetSelectYesno(out AddonSelectYesno* yesno))
+        {
+            if (EzThrottler.Throttle("Shopping::Yesno", 500))
             {
                 try
                 {
-                    var menuAddress = gui.GetAddonByName("SelectIconString", 1).Address;
-                    if (menuAddress == nint.Zero)
-                    {
-                        return;
-                    }
-
-                    var menu = new AddonMaster.SelectIconString(menuAddress);
-                    var entryIndex = desiredPage.MenuIndex;
-                    if (menu.Entries == null || entryIndex >= menu.Entries.Length)
-                    {
-                        logger.Warn($"[Shopping] op=menu-select-skip reason=entry-missing index={entryIndex} count={menu.Entries?.Length ?? 0}");
-                        return;
-                    }
-
-                    menu.Entries[entryIndex].Select();
-                    SetStatus($"Shopping | Opening \"{desiredPage.MenuLabel}\".");
-                    nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
-                    ResetStability();
+                    new AddonMaster.SelectYesno((nint)yesno).Yes();
                 }
-                catch (Exception ex)
+                catch
                 {
-                    logger.Warn($"[Shopping] op=menu-select-failed err=\"{ex.Message}\"");
+                    // next tick retries
                 }
             }
 
-            return;
+            return true;
         }
 
-        if (!snapshot.IsShopExchangeCurrencyOpen)
+        ShopCatalogEntry? next = PickNextPurchase(zoneId, preferLiveRow: true);
+        if (next == null)
         {
-            // Neither window open — go find/interact with the vendor again.
-            phase = Phase.Traveling;
-            return;
-        }
-
-        if (!matcher.TryMatch(ShopCatalog.Pages, snapshot, out var match, out var matchReason) || match == null)
-        {
-            ResetStability();
-            SetStatus($"Shopping | Waiting for known shop page ({matchReason}).");
-            nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
-            return;
-        }
-
-        if (match.Page.MenuIndex != desiredPage?.MenuIndex)
-        {
-            ResetStability();
-            if (TryCloseShop())
+            // Maybe need another menu for remaining preferred items.
+            ShopCatalogEntry? otherMenu = PickNextPurchase(zoneId, preferLiveRow: false);
+            if (otherMenu is { } switchTo && switchTo.MenuIndex != openedMenuIndex)
             {
-                SetStatus("Shopping | Returning to vendor menu.");
-                nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
+                if (EzThrottler.Throttle("Shopping::CloseForMenu", 1000))
+                {
+                    shop->FireCallbackInt(-1);
+                    desiredMenuIndex = switchTo.MenuIndex;
+                    openedMenuIndex = null;
+                    phase = Phase.OpeningMenu;
+                    logger.Debug($"[Shopping] switching to menu {desiredMenuIndex}");
+                }
+
+                return true;
             }
 
-            return;
-        }
-
-        if (match.Tab.TabId != desiredTab?.TabId)
-        {
-            desiredTab ??= PickBestTab(match.Page);
-            if (desiredTab == null)
+            if (EzThrottler.Throttle("Shopping::Close", 2000))
             {
-                StopCompleted($"No actionable targets on page \"{match.Page.MenuLabel}\".");
-                return;
+                shop->FireCallbackInt(-1);
+                FinishShopping();
             }
 
-            ResetStability();
-            if (TrySelectTab(desiredTab.TabId))
-            {
-                SetStatus($"Shopping | Switching to tab \"{desiredTab.TabLabel}\".");
-                nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
-            }
-
-            return;
+            return true;
         }
 
-        if (matchedAt == DateTimeOffset.MinValue)
+        ShopCatalogEntry entry = next.Value;
+        if (!ShopExchangeAssist.TryFindRowIndex(entry.ItemId, out uint rowIndex))
         {
-            matchedAt = DateTimeOffset.UtcNow;
-            SetStatus("Shopping | Waiting for tab settle.");
-            return;
+            skippedMissingRows.Add(entry.ItemId);
+            logger.Debug($"[Shopping] item {entry.Name} ({entry.ItemId}) not in open shop — skip");
+            return true;
         }
 
-        if (DateTimeOffset.UtcNow - matchedAt < TimeSpan.FromMilliseconds(250))
+        if (!EzThrottler.Throttle("Shopping::Buy", 750))
         {
-            return;
+            return true;
         }
 
-        if (!stableLogged)
-        {
-            logger.Info($"[Shopping] op=navigation-stable menu={match.Page.MenuIndex} tab={match.Tab.TabId}");
-            stableLogged = true;
-        }
-
-        phase = Phase.Buying;
+        logger.Debug($"[Shopping] buy item={entry.Name} ({entry.ItemId}) row={rowIndex} cost={entry.Cost}");
+        FirePurchaseCallback(shop, rowIndex, 1);
+        NotePurchase(entry.ItemId);
+        buyCooldownUntil = DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(500);
+        return true;
     }
 
-    // ---------------------------------------------------------------- buying
-
-    private void TickBuy()
+    private void NotePurchase(uint itemId)
     {
-        if (purchases.IsBusy)
+        if (!config.Shopping.TryGetValue(itemId, out ShopListEntry? setting) || setting == null)
         {
-            SetStatus("Shopping | Waiting for purchase result.");
             return;
         }
 
-        var snapshot = inspector.Snapshot;
-        if (!snapshot.IsShopExchangeCurrencyOpen)
+        if (setting.BuyAmount > 0)
         {
-            phase = Phase.Navigating;
-            return;
+            setting.BuyAmount--;
         }
-
-        if (!matcher.TryMatch(ShopCatalog.Pages, snapshot, out var match, out _) || match == null
-            || match.Page.MenuIndex != desiredPage?.MenuIndex || match.Tab.TabId != desiredTab?.TabId)
-        {
-            phase = Phase.Navigating;
-            return;
-        }
-
-        var available = AvailableCurrency(match.Page.CurrencyItemId);
-        var target = SelectNextTarget(snapshot, match.Page, match.Tab, available);
-        if (target == null)
-        {
-            // Page/tab done — move to the next one or finish.
-            if (AdvanceToNextGroup())
-            {
-                return;
-            }
-
-            if (TryCloseShop())
-            {
-                phase = Phase.Closing;
-                nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
-                return;
-            }
-
-            StopCompleted(BuildDoneMessage());
-            return;
-        }
-
-        var (entry, quantity, intent, targetState) = target.Value;
-        if (!purchases.TryBuy(entry, quantity))
-        {
-            if (purchases.LastCompletionKind == PurchaseCompletionKind.StopShopping)
-            {
-                Stop($"Stopped: {purchases.LastStatus}");
-            }
-            else
-            {
-                nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
-            }
-
-            return;
-        }
-
-        pendingIntent = intent;
-        pendingTargetIndex = targetState;
-        pendingQuantity = quantity;
-        SetStatus($"Shopping | Buying {quantity}× {entry.ItemName} ({intent}).");
     }
 
-    private ShoppingConfig? cfg => config; // readability alias used below
-
-    // ------------------------------------------------------- target selection
-
-    private (LiveShopEntry Entry, int Quantity, string Intent, int ConfigIndex)? SelectNextTarget(
-        LiveShopSnapshot snapshot, ShopPageDefinition page, ShopTabDefinition tab, int available)
+    private bool HasPendingGoals(ZoneId zoneId)
     {
-        var candidates = config.Targets
-            .Select((t, i) => (T: t, I: i))
-            .Where(x => MatchesTerritory(x.T.TerritoryKey)
-                        && x.T.MenuIndex == page.MenuIndex && x.T.TabId == tab.TabId)
-            .OrderBy(x => x.T.Priority);
-
-        foreach (var (target, index) in candidates)
+        foreach (uint itemId in config.ShoppingOrder)
         {
-            var live = snapshot.ShopEntries.FirstOrDefault(e => e.ItemId == target.ItemId);
-            var def = tab.Items.FirstOrDefault(d => d.ItemId == target.ItemId);
-            if (live == null || def == null || live.RowIndex != def.RowIndex || live.Cost != def.Cost || live.Cost > (uint)available)
+            if (!config.Shopping.TryGetValue(itemId, out ShopListEntry? setting) || setting == null)
             {
                 continue;
             }
 
-            var count = (int)ItemCount(target.ItemId);
-
-            // Keep → Buy → KeepBuying, deterministic order like AOCCH.
-            if (target.KeepAmount > 0 && count < target.KeepAmount)
-            {
-                var qty = BatchQuantity(live, target.KeepAmount - count, available);
-                if (qty > 0)
-                {
-                    return (live, qty, "Keep", index);
-                }
-            }
-
-            if (target.BuyAmount > 0)
-            {
-                var qty = BatchQuantity(live, target.BuyAmount - Math.Min(count, target.BuyAmount), available);
-                if (qty > 0)
-                {
-                    return (live, qty, "Buy", index);
-                }
-            }
-
-            if (target.KeepBuying)
-            {
-                var qty = BatchQuantity(live, int.MaxValue, available);
-                if (qty > 0)
-                {
-                    return (live, qty, "Keep Buying", index);
-                }
-            }
-        }
-
-        // Legacy allowlist fallback when no structured targets exist.
-        foreach (var itemId in config.PreferredItemIds)
-        {
-            if (!ShopCatalog.TryGet(itemId, out var def))
+            // Only affordable preferred offers count — otherwise we keep soft-suspending
+            // and retrying buys we already know will fail.
+            if (!TryResolveAffordable(itemId, zoneId, setting, out ShopCatalogEntry entry))
             {
                 continue;
             }
 
-            var live = snapshot.ShopEntries.FirstOrDefault(e => e.ItemId == itemId);
-            if (live == null || live.Cost > (uint)available)
+            if (ShopOwnership.ShouldBlockPurchase(entry, supportJobs, data, unlockState))
             {
                 continue;
             }
 
-            var qty = BatchQuantity(live, 1, available);
-            if (qty > 0)
-            {
-                return (live, qty, "Preferred", -1);
-            }
-        }
-
-        return null;
-    }
-
-    private static int BatchQuantity(LiveShopEntry entry, int desired, int available)
-    {
-        if (desired <= 0 || entry.Cost == 0 || available < (int)entry.Cost)
-        {
-            return 0;
-        }
-
-        var maxAffordable = available / (int)entry.Cost;
-        var batchLimit = entry.MaxStackSize == 999u ? 99 : 1;
-        return Math.Max(1, Math.Min(Math.Min(desired, maxAffordable), batchLimit));
-    }
-
-    private bool HasActionableTarget(ShopPageDefinition page, ShopTabDefinition tab, int available)
-    {
-        if (available <= 0)
-        {
-            return false;
-        }
-
-        foreach (var target in config.Targets)
-        {
-            if (!MatchesTerritory(target.TerritoryKey) || target.MenuIndex != page.MenuIndex || target.TabId != tab.TabId)
-            {
-                continue;
-            }
-
-            var def = tab.Items.FirstOrDefault(i => i.ItemId == target.ItemId);
-            if (def == null || def.Cost > (uint)available)
-            {
-                continue;
-            }
-
-            var count = (int)ItemCount(target.ItemId);
-            if ((target.KeepAmount > 0 && count < target.KeepAmount) || target.BuyAmount > 0 || target.KeepBuying)
+            if (setting.BuyAmount > 0)
             {
                 return true;
             }
-        }
 
-        return config.PreferredItemIds.Count > 0;
-    }
-
-    /// <summary>Pick another actionable page/tab, else false to finish.</summary>
-    private bool AdvanceToNextGroup()
-    {
-        if (!TryGetPagesForZone(out var pages))
-        {
-            return false;
-        }
-
-        foreach (var page in pages.OrderBy(p => p.CurrencyItemId).ThenBy(p => p.MenuIndex))
-        {
-            var available = AvailableCurrency(page.CurrencyItemId);
-            foreach (var tab in page.Tabs)
+            if (setting.KeepAmount > InventoryItemAssist.Count(itemId))
             {
-                if (!HasActionableTarget(page, tab, available))
-                {
-                    continue;
-                }
+                return true;
+            }
 
-                if (page.MenuIndex == desiredPage?.MenuIndex && tab.TabId == desiredTab?.TabId)
-                {
-                    continue;
-                }
-
-                desiredPage = page;
-                desiredTab = tab;
-                ResetStability();
-                phase = Phase.Navigating;
-                SetStatus($"Shopping | Moving to \"{page.MenuLabel}\" / \"{tab.TabLabel}\".");
+            if (setting.KeepBuying)
+            {
                 return true;
             }
         }
@@ -884,105 +454,173 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
         return false;
     }
 
-    // ------------------------------------------------------ purchase results
-
-    private int pendingTargetIndex = -1;
-    private string pendingIntent = string.Empty;
-    private int pendingQuantity;
-
-    private void OnPurchaseCompleted(PurchaseCompletionKind kind)
+    private ShopCatalogEntry? PickNextPurchase(ZoneId zoneId, bool preferLiveRow)
     {
-        if (phase != Phase.Buying)
-        {
-            return;
-        }
-
-        switch (kind)
-        {
-            case PurchaseCompletionKind.Success:
-                completedPurchaseCount += Math.Max(1, pendingQuantity);
-                if (pendingTargetIndex >= 0 && pendingIntent == "Buy")
-                {
-                    var t = config.Targets[pendingTargetIndex];
-                    t.BuyAmount = Math.Max(0, t.BuyAmount - Math.Max(1, pendingQuantity));
-                }
-
-                break;
-            case PurchaseCompletionKind.SkipTarget:
-                // Mark target as exhausted for this run so we do not loop forever.
-                if (pendingTargetIndex >= 0)
-                {
-                    skippedThisRun.Add(pendingTargetIndex);
-                    if (pendingIntent == "Buy")
-                    {
-                        config.Targets[pendingTargetIndex].BuyAmount = 0;
-                    }
-                }
-
-                break;
-            case PurchaseCompletionKind.StopShopping:
-                Stop($"Stopped: {purchases.LastStatus}");
-                return;
-        }
-
-        pendingTargetIndex = -1;
-        pendingIntent = string.Empty;
-        nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
+        // Buy amounts first, then Keep stock-ups, then Keep Buying sink.
+        return PickByGoal(zoneId, preferLiveRow, ShopGoal.Buy)
+               ?? PickByGoal(zoneId, preferLiveRow, ShopGoal.Keep)
+               ?? PickByGoal(zoneId, preferLiveRow, ShopGoal.KeepBuying);
     }
 
-    private readonly HashSet<int> skippedThisRun = [];
-
-    // ---------------------------------------------------------------- helpers
-
-    /// <summary>First page (by menu index) holding an actionable configured target.</summary>
-    private ShopPageDefinition? FindFirstActionablePage()
+    private enum ShopGoal
     {
-        if (!TryGetPagesForZone(out var pages))
+        Buy,
+        Keep,
+        KeepBuying,
+    }
+
+    private ShopCatalogEntry? PickByGoal(ZoneId zoneId, bool preferLiveRow, ShopGoal goal)
+    {
+        List<ShopCatalogEntry> candidates = [];
+        foreach (uint itemId in config.ShoppingOrder)
+        {
+            if (!config.Shopping.TryGetValue(itemId, out ShopListEntry? setting) || setting == null)
+            {
+                continue;
+            }
+
+            if (!TryResolveAffordable(itemId, zoneId, setting, out ShopCatalogEntry entry))
+            {
+                continue;
+            }
+
+            if (entry.ItemId == 0 || skippedMissingRows.Contains(entry.ItemId))
+            {
+                continue;
+            }
+
+            if (ShopOwnership.ShouldBlockPurchase(entry, supportJobs, data, unlockState))
+            {
+                continue;
+            }
+
+            if (!MatchesGoal(setting, itemId, goal))
+            {
+                continue;
+            }
+
+            candidates.Add(entry);
+        }
+
+        if (candidates.Count == 0)
         {
             return null;
         }
 
-        foreach (var page in pages.OrderBy(p => p.MenuIndex))
+        if (preferLiveRow)
         {
-            var available = AvailableCurrency(page.CurrencyItemId);
-            foreach (var tab in page.Tabs)
+            // ItemId alone is not enough: the same item appears in silver and gold menus.
+            // Matching a gold offer while the silver shop is open spams failed buys.
+            foreach (ShopCatalogEntry entry in candidates)
             {
-                if (HasActionableTarget(page, tab, available))
+                if (openedMenuIndex is { } liveMenu && entry.MenuIndex != liveMenu)
                 {
-                    return page;
+                    continue;
+                }
+
+                if (ShopExchangeAssist.TryFindRowIndex(entry.ItemId, out _))
+                {
+                    return entry;
+                }
+            }
+
+            return null;
+        }
+
+        if (openedMenuIndex is { } open)
+        {
+            foreach (ShopCatalogEntry entry in candidates)
+            {
+                if (entry.MenuIndex == open)
+                {
+                    return entry;
                 }
             }
         }
 
-        return null;
+        return candidates[0];
     }
 
-    private ShopPageDefinition? FindPage(int menuIndex) =>
-        ShopCatalog.Pages.FirstOrDefault(p => p.MenuIndex == menuIndex);
-
-    private ShopTabDefinition? PickBestTab(ShopPageDefinition page)
-    {
-        var available = AvailableCurrency(page.CurrencyItemId);
-        foreach (var tab in page.Tabs.OrderBy(t => t.TabId))
+    private static bool MatchesGoal(ShopListEntry setting, uint itemId, ShopGoal goal) =>
+        goal switch
         {
-            if (HasActionableTarget(page, tab, available))
+            ShopGoal.Buy => setting.BuyAmount > 0,
+            ShopGoal.Keep => setting.KeepAmount > InventoryItemAssist.Count(itemId),
+            ShopGoal.KeepBuying => setting.KeepBuying,
+            _ => false,
+        };
+
+    private bool TryResolveAffordable(
+        uint itemId,
+        ZoneId zoneId,
+        ShopListEntry setting,
+        out ShopCatalogEntry entry)
+    {
+        foreach (ShopCatalogEntry offer in ShopCatalog.PreferredOffers(
+                     itemId, zoneId, setting.PreferredCurrencies))
+        {
+            if (CanAfford(offer))
             {
-                return tab;
+                entry = offer;
+                return true;
             }
         }
 
-        return null;
+        entry = default;
+        return false;
     }
 
-    private unsafe bool TrySelectTab(int tabId)
+    private bool CanAfford(ShopCatalogEntry entry)
     {
-        var addon = (AtkUnitBase*)gui.GetAddonByName("ShopExchangeCurrency", 1).Address;
-        if (addon == null || !addon->IsReady)
+        int have = OccultCrescentHelper.GetCurrencyCount(entry.CurrencyItemId);
+        int reserve = 0;
+        if (OccultCurrencies.IsSilverCurrency(entry.CurrencyItemId))
         {
-            return false;
+            reserve = config.ReserveSilver;
+        }
+        else if (OccultCurrencies.IsGoldCurrency(entry.CurrencyItemId))
+        {
+            reserve = config.ReserveGold;
         }
 
-        var values = (AtkValue*)Marshal.AllocHGlobal(4 * sizeof(AtkValue));
+        return have - reserve >= entry.Cost;
+    }
+
+    private unsafe void TrySelectShopMenu(int menuIndex)
+    {
+        if (!EzThrottler.Throttle("Shopping::SelectMenu", 750))
+        {
+            return;
+        }
+
+        try
+        {
+            nint addon = gui.GetAddonByName("SelectIconString", 1).Address;
+            if (addon == nint.Zero)
+            {
+                return;
+            }
+
+            AddonMaster.SelectIconString master = new(addon);
+            if (menuIndex < 0 || menuIndex >= master.Entries.Length)
+            {
+                logger.Warn($"[Shopping] menu index {menuIndex} out of range ({master.Entries.Length})");
+                return;
+            }
+
+            master.Entries[menuIndex].Select();
+            openedMenuIndex = menuIndex;
+            skippedMissingRows.Clear();
+        }
+        catch (Exception ex)
+        {
+            logger.Warn($"[Shopping] SelectIconString failed: {ex.Message}");
+        }
+    }
+
+    private static unsafe bool FirePurchaseCallback(AtkUnitBase* addon, uint rowIndex, int quantity)
+    {
+        AtkValue* values = (AtkValue*)Marshal.AllocHGlobal(4 * sizeof(AtkValue));
         if (values == null)
         {
             return false;
@@ -990,106 +628,18 @@ public sealed class ShoppingService : IOnUpdate, IDisposable
 
         try
         {
-            for (var i = 0; i < 4; i++)
-            {
-                values[i] = default;
-            }
-
-            values[0].SetInt(4);
-            values[1].SetInt(-1);
-            values[2].SetInt(1);
-            values[3].SetInt(tabId);
+            values[0] = default;
+            values[1] = default;
+            values[2] = default;
+            values[3] = default;
+            values[0].SetInt(0);
+            values[1].SetUInt(rowIndex);
+            values[2].SetInt(quantity);
             return addon->FireCallback(4, values, true);
         }
         finally
         {
             Marshal.FreeHGlobal((nint)values);
         }
-    }
-
-    private unsafe bool TryCloseShop()
-    {
-        var addon = (AtkUnitBase*)gui.GetAddonByName("ShopExchangeCurrency", 1).Address;
-        if (addon == null || !addon->IsReady)
-        {
-            return true;
-        }
-
-        addon->FireCallbackInt(-1);
-        nextStepAt = DateTimeOffset.UtcNow + StepRetryDelay;
-        return true;
-    }
-
-    private bool TryFindVendor(out IGameObject? vendor)
-    {
-        var zoneVendor = zones.GetZone().GetShoppingVendor();
-        if (zoneVendor is not { } vendorData)
-        {
-            vendor = null;
-            return false;
-        }
-
-        vendor = objects
-                .Where(o => o is { ObjectKind: ObjectKind.EventNpc, IsTargetable: true } && o.BaseId == vendorData.DataId)
-                .OrderBy(o => o.Position.Distance2D(player.Position))
-                .FirstOrDefault();
-        return vendor != null;
-    }
-
-    private bool TryGetPagesForZone(out IReadOnlyList<ShopPageDefinition> pages)
-    {
-        pages = ShopCatalog.Pages;
-        return zones.GetZone().IsOccultCrescentZone() && pages.Count > 0;
-    }
-
-    private string TerritoryKey()
-    {
-        var zoneId = zones.GetZone().ZoneId;
-        return zoneId == ZoneId.Unknown ? "SouthHorn" : zoneId.ToString();
-    }
-
-    private bool MatchesTerritory(string key) =>
-        string.Equals(key, TerritoryKey(), StringComparison.OrdinalIgnoreCase);
-
-    private static unsafe int ItemCount(uint itemId)
-    {
-        var inventory = InventoryManager.Instance();
-        return inventory == null ? 0 : inventory->GetInventoryItemCount(itemId);
-    }
-
-    private static int CurrencyCount(uint itemId) => (int)ItemCount(itemId);
-
-    private int AvailableCurrency(uint currencyItemId) =>
-        Math.Max(0, CurrencyCount(currencyItemId) - config.GetReserve(TerritoryKey(), currencyItemId));
-
-    private void RefreshTriggerStatus()
-    {
-        if (phase != Phase.Idle)
-        {
-            return;
-        }
-
-        TriggerStatus = ShouldAutoStart(out var reason) ? reason : reason;
-    }
-
-    private void StopCompleted(string reason) => Stop(reason, cooldown: false);
-
-    private string BuildDoneMessage() =>
-        completedPurchaseCount > 0
-            ? $"Completed automatic shopping run. purchases={completedPurchaseCount}."
-            : "No shopping targets remain.";
-
-    private void SetStatus(string s)
-    {
-        lock (gate)
-        {
-            status = s;
-        }
-    }
-
-    private void ResetStability()
-    {
-        matchedAt = DateTimeOffset.MinValue;
-        stableLogged = false;
     }
 }
